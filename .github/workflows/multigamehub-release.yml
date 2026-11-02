@@ -50,11 +50,13 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - uses: android-actions/setup-android@v3
-
+      # GitHub's Ubuntu runners ship the Android SDK (ANDROID_HOME); use its sdkmanager.
       - name: Install Android SDK packages
         run: |
-          sdkmanager --install "platforms;android-35" "build-tools;36.1.0" "ndk;29.0.14206865"
+          SDKM="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)"
+          echo "Using $SDKM"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "platforms;android-35" "build-tools;36.1.0" "ndk;29.0.14206865"
 
       - name: Decode release keystore
         if: env.IS_RELEASE == 'true'
