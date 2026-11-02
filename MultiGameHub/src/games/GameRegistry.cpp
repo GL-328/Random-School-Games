@@ -13,58 +13,45 @@ std::unique_ptr<Game> createSnakeGame(AppContext& ctx);
 namespace {
 
 void chessArt(Renderer2D& r, const Rect& rc, float /*time*/) {
-    const float s = std::min(rc.w, rc.h);
-    // Checker pattern fading out.
-    const int n = 6;
-    const float cs = rc.w / n;
-    for (int y = 0; y * cs < rc.h; ++y)
-        for (int x = (y & 1); x < n; x += 2)
-            r.fillRect({rc.x + x * cs, rc.y + y * cs, cs, std::min(cs, rc.bottom() - (rc.y + y * cs))},
-                       Color(255, 255, 255, static_cast<uint8_t>(18 + 10 * (y % 2))));
-    const float px = s * 0.72f;
-    const float cx = rc.cx(), cy = rc.cy() + s * 0.02f;
-    r.glyphCentered(0x265E, cx + s * 0.02f, cy + s * 0.035f, px, Color(0, 0, 0, 70), FontId::Chess);
-    r.glyphCentered(0x265E, cx, cy, px, Color::hex(0xFBFAF7), FontId::Chess);
-    r.glyphCentered(0x2658, cx, cy, px, Color::hex(0x2A1F4D), FontId::Chess);
+    // The same "chessnut" knight as the in-game pieces.
+    const float s = std::min(rc.w, rc.h) * 0.74f;
+    r.image(r.asset("pieces/knight_icon.png"), {rc.cx() - s * 0.5f, rc.cy() - s * 0.5f, s, s}, 0, 0, 1, 1);
 }
 
-void airHockeyArt(Renderer2D& r, const Rect& rc, float time) {
+void airHockeyArt(Renderer2D& r, const Rect& rc, float /*time*/) {
     const float s = std::min(rc.w, rc.h);
     const Color line(255, 255, 255, 70);
     r.fillRect({rc.x, rc.cy() - s * 0.012f, rc.w, s * 0.024f}, line);
     r.strokeCircle(rc.cx(), rc.cy(), s * 0.2f, s * 0.024f, line);
-    const float wob = std::sin(time * 2.0f) * s * 0.05f;
     auto paddle = [&](float x, float y, Color c) {
-        r.fillCircle(x, y, s * 0.15f, c.darken(0.15f));
+        r.fillCircle(x, y, s * 0.15f, c.darken(0.22f));
         r.fillCircle(x, y, s * 0.12f, c);
-        r.fillCircle(x, y, s * 0.06f, c.lighten(0.3f));
+        r.fillCircle(x, y, s * 0.06f, c.darken(0.22f));
     };
-    paddle(rc.cx() - s * 0.18f + wob, rc.cy() + s * 0.28f, Color::hex(0xFF4D6D));
-    paddle(rc.cx() + s * 0.2f - wob, rc.cy() - s * 0.3f, Color::hex(0x36D6F5));
-    const float px = rc.cx() + s * 0.08f + wob * 0.6f, py = rc.cy() + s * 0.02f;
+    paddle(rc.cx() - s * 0.18f, rc.cy() + s * 0.28f, Color::hex(0xFF4D6D));
+    paddle(rc.cx() + s * 0.2f, rc.cy() - s * 0.3f, Color::hex(0x36D6F5));
+    const float px = rc.cx() + s * 0.08f, py = rc.cy() + s * 0.02f;
     r.fillCircle(px, py, s * 0.07f, Color::hex(0x14171D));
     r.strokeCircle(px, py, s * 0.055f, s * 0.018f, Color::hex(0xF5F7FA));
 }
 
-void snakeArt(Renderer2D& r, const Rect& rc, float time) {
+void snakeArt(Renderer2D& r, const Rect& rc, float /*time*/) {
+    // Same look as the in-game snake: one outlined tube with round corners.
     const float s = std::min(rc.w, rc.h);
-    const float c = s / 7;
-    for (int y = 0; y * c < rc.h; ++y)
-        for (int x = (y & 1); x * c < rc.w; x += 2)
-            r.fillRect({rc.x + x * c, rc.y + y * c, c, std::min(c, rc.bottom() - (rc.y + y * c))}, Color(255, 255, 255, 14));
     const Vec2f pts[] = {{-0.3f, 0.25f}, {-0.1f, 0.25f}, {-0.1f, 0.05f}, {0.1f, 0.05f}, {0.1f, -0.15f}, {0.28f, -0.15f}};
     const int n = 6;
-    for (int i = 0; i < n - 1; ++i) {
-        Color col = Color::hex(0x1FAF6A).lerp(Color::hex(0x7CF29A), static_cast<float>(i) / (n - 1));
-        r.line(rc.cx() + pts[i].x * s, rc.cy() + pts[i].y * s, rc.cx() + pts[i + 1].x * s, rc.cy() + pts[i + 1].y * s,
-               s * 0.14f, col);
+    for (int pass = 0; pass < 2; ++pass) {
+        const Color c = pass == 0 ? Color::hex(0x127A48) : Color::hex(0x7CF29A);
+        const float w = pass == 0 ? s * 0.17f : s * 0.13f;
+        for (int i = 0; i + 1 < n; ++i)
+            r.line(rc.cx() + pts[i].x * s, rc.cy() + pts[i].y * s, rc.cx() + pts[i + 1].x * s, rc.cy() + pts[i + 1].y * s, w,
+                   c, false);
+        for (const Vec2f& p : pts) r.fillCircle(rc.cx() + p.x * s, rc.cy() + p.y * s, w * 0.5f, c);
     }
     const float hx = rc.cx() + pts[n - 1].x * s, hy = rc.cy() + pts[n - 1].y * s;
     r.fillCircle(hx + s * 0.02f, hy - s * 0.03f, s * 0.025f, Color::hex(0xFFFFFF));
     r.fillCircle(hx + s * 0.02f, hy + s * 0.03f, s * 0.025f, Color::hex(0xFFFFFF));
-    const float bob = std::sin(time * 4) * s * 0.01f;
-    const float ax = rc.cx() + s * 0.3f, ay = rc.cy() + s * 0.22f + bob;
-    r.fillCircle(ax, ay, s * 0.07f, Color::hex(0xFF5A5F));
+    r.fillCircle(rc.cx() + s * 0.3f, rc.cy() + s * 0.22f, s * 0.07f, Color::hex(0xFF5A5F));
 }
 
 std::vector<GameInfo> buildRegistry() {

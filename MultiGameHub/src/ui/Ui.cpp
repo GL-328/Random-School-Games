@@ -16,6 +16,7 @@ void Ui::feed(const PointerEvent& e) {
             np.y = np.sy = e.y;
             np.down = true;
             np.pressedNow = true;
+            np.sample(e.t, e.y);
             pointers_.push_back(np);
             break;
         }
@@ -23,6 +24,7 @@ void Ui::feed(const PointerEvent& e) {
             if (p && p->down) {
                 p->x = e.x;
                 p->y = e.y;
+                p->sample(e.t, e.y);
                 if (std::hypot(p->x - p->sx, p->y - p->sy) > px(10)) p->dragged = true;
             }
             break;
@@ -31,6 +33,7 @@ void Ui::feed(const PointerEvent& e) {
             if (p && p->down) {
                 p->x = e.x;
                 p->y = e.y;
+                p->sample(e.t, e.y);
                 if (std::hypot(p->x - p->sx, p->y - p->sy) > px(10)) p->dragged = true;
                 p->down = false;
                 p->releasedNow = true;
@@ -91,52 +94,79 @@ bool Ui::pressing(const Rect& r) const {
 
 // ------------------------------------------------------------------ scroll
 
+float Ui::Pointer::velocityY() const {
+    if (ns < 2) return 0;
+    const double tEnd = st[ns - 1];
+    int i0 = ns - 1;
+    while (i0 > 0 && tEnd - st[i0 - 1] <= 0.1) --i0;
+    const double dt = tEnd - st[i0];
+    if (dt < 0.005) return 0;
+    return static_cast<float>((sy8[ns - 1] - sy8[i0]) / dt);
+}
+
 void Ui::scrollBegin(ScrollState& s, const Rect& vp) {
     s.viewport = vp.h;
-    if (inputEnabled_) {
-        // Start a drag for a pointer that began in the viewport and moved vertically.
-        if (!s.dragging) {
-            for (auto& p : pointers_) {
-                if (p.down && !p.consumed && vp.contains(p.sx, p.sy) && std::fabs(p.y - p.sy) > px(8)) {
-                    s.dragging = true;
-                    s.dragId = p.id;
-                    s.lastPointerY = p.y;
-                    s.vel = 0;
-                    p.consumed = true;
-                    p.dragged = true;
-                    break;
-                }
-            }
-        }
-        if (s.dragging) {
-            bool found = false;
-            for (auto& p : pointers_) {
-                if (p.id != s.dragId) continue;
-                found = true;
-                float dy = p.y - s.lastPointerY;
-                s.lastPointerY = p.y;
-                s.y -= dy;
-                if (dt_ > 0) s.vel = s.vel * 0.6f + (-dy / dt_) * 0.4f;
-                if (!p.down) s.dragging = false;
-            }
-            if (!found) s.dragging = false;
-        }
-    } else {
-        s.dragging = false;
-    }
-    if (!s.dragging) {
-        s.y += s.vel * dt_;
-        s.vel *= std::exp(-4.5f * dt_);
-        if (std::fabs(s.vel) < 5) s.vel = 0;
-    }
     const float maxY = std::max(0.0f, s.content - s.viewport);
+    // Overscroll shows with resistance (rubber band) and springs back afterwards.
+    auto rubber = [&](float raw) {
+        if (raw < 0) return raw * 0.35f;
+        if (raw > maxY) return maxY + (raw - maxY) * 0.35f;
+        return raw;
+    };
+    if (inputEnabled_ && !s.dragging) {
+        for (auto& p : pointers_) {
+            if (!p.down || p.consumed || !vp.contains(p.sx, p.sy)) continue;
+            // Touching a list that is still flinging just stops it (no accidental tap).
+            if (p.pressedNow && std::fabs(s.vel) > px(150)) {
+                s.vel = 0;
+                p.consumed = true;
+                break;
+            }
+            const float dy = p.y - p.sy, dx = p.x - p.sx;
+            if (std::fabs(dy) > px(8) && std::fabs(dy) > std::fabs(dx)) {
+                s.dragging = true;
+                s.dragId = p.id;
+                s.anchorPointerY = p.y;  // start from here: no jump when the drag begins
+                s.anchorScroll = s.y;
+                s.vel = 0;
+                p.consumed = true;
+                p.dragged = true;
+                break;
+            }
+        }
+    }
+    if (s.dragging) {
+        const Pointer* dp = nullptr;
+        for (const auto& p : pointers_)
+            if (p.id == s.dragId) dp = &p;
+        if (!dp || !inputEnabled_) {
+            s.dragging = false;
+        } else {
+            // Content follows the finger exactly.
+            const float raw = s.anchorScroll - (dp->y - s.anchorPointerY);
+            s.y = rubber(raw);
+            if (!dp->down) {
+                s.dragging = false;
+                s.vel = (s.y < 0 || s.y > maxY) ? 0.0f : std::clamp(-dp->velocityY(), -px(6000), px(6000));
+            }
+        }
+    }
     if (!s.dragging) {
-        if (s.y < 0) { s.y = approach(s.y, 0, 18, dt_); s.vel = 0; if (s.y > -0.5f) s.y = 0; }
-        if (s.y > maxY) { s.y = approach(s.y, maxY, 18, dt_); s.vel = 0; if (s.y < maxY + 0.5f) s.y = maxY; }
-    } else {
-        // Rubber band when over-scrolling.
-        if (s.y < 0) s.y *= 0.5f;
-        if (s.y > maxY) s.y = maxY + (s.y - maxY) * 0.5f;
+        if (s.y < 0 || s.y > maxY) {
+            // Spring back after an overscroll.
+            const float target = s.y < 0 ? 0.0f : maxY;
+            s.vel = 0;
+            s.y = approach(s.y, target, 16, dt_);
+            if (std::fabs(s.y - target) < 0.5f) s.y = target;
+        } else if (s.vel != 0) {
+            s.y += s.vel * dt_;
+            s.vel *= std::exp(-3.2f * dt_);  // gentle deceleration
+            if (s.y < 0 || s.y > maxY) {
+                s.y = std::clamp(s.y, 0.0f, maxY);
+                s.vel = 0;
+            }
+            if (std::fabs(s.vel) < px(12)) s.vel = 0;
+        }
     }
     if (s.dragging || s.vel != 0 || s.y < 0 || s.y > maxY) animate();
 

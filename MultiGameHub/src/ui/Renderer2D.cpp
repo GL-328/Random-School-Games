@@ -283,6 +283,35 @@ void Renderer2D::image(SDL_Texture* tex, const Rect& d, float u0, float v0, floa
     draw(tex);
 }
 
+SDL_Texture* Renderer2D::asset(const std::string& name) {
+    auto it = images_.find(name);
+    if (it != images_.end()) return it->second;
+    SDL_Texture* tex = nullptr;
+    if (SDL_Surface* loaded = SDL_LoadPNG((assetRoot_ + name).c_str())) {
+        // PNGs are stored as palette images with transparency to keep the APK small.
+        // Convert to straight RGBA so every renderer keeps per-pixel alpha
+        // (otherwise transparent areas can show up as solid squares).
+        SDL_Surface* s = SDL_ConvertSurface(loaded, SDL_PIXELFORMAT_RGBA32);
+        SDL_DestroySurface(loaded);
+        if (s) {
+            tex = SDL_CreateTextureFromSurface(r_, s);
+            SDL_DestroySurface(s);
+        }
+        if (tex) {
+            SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+            SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR);
+        }
+    }
+    images_[name] = tex;  // cache failures too, so we don't retry every frame
+    return tex;
+}
+
+void Renderer2D::clearImages() {
+    for (auto& [name, tex] : images_)
+        if (tex) SDL_DestroyTexture(tex);
+    images_.clear();
+}
+
 // ------------------------------------------------------------------ text
 
 float Renderer2D::lineHeight(float px, FontId f) {

@@ -32,6 +32,8 @@ public:
     FontAtlas* atlas(FontId id, float pixelSize);
     void beginFrame();  // evicts atlases unused for a while
     void clear();       // drops all atlases (e.g. when the renderer is reset)
+    int bakeCount() const { return bakes_; }  // atlases built so far (diagnostics)
+    size_t atlasCount() const { return atlases_.size(); }
 
 private:
     struct FontData;
@@ -39,6 +41,7 @@ private:
     std::unique_ptr<FontData> fonts_[static_cast<int>(FontId::Count)];
     std::map<std::pair<int, int>, std::unique_ptr<FontAtlas>> atlases_;
     uint64_t frame_ = 0;
+    int bakes_ = 0;
 };
 
 class FontAtlas {

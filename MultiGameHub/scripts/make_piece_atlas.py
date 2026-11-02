@@ -24,3 +24,10 @@ out = os.path.join(ROOT, "assets", "pieces", "chessnut.png")
 # and ~4x smaller than full RGBA.
 atlas.quantize(colors=256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE).save(out, optimize=True)
 print(out, os.path.getsize(out), "bytes")
+
+# Large white knight used for the Chess card artwork in the hub.
+png = cairosvg.svg2png(url=os.path.join(SRC, "wN.svg"), output_width=256, output_height=256)
+icon = Image.open(io.BytesIO(png)).convert("RGBA")
+icon_out = os.path.join(ROOT, "assets", "pieces", "knight_icon.png")
+icon.quantize(colors=128, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE).save(icon_out, optimize=True)
+print(icon_out, os.path.getsize(icon_out), "bytes")

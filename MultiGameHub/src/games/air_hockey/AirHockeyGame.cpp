@@ -68,6 +68,11 @@ private:
     float hitFlash_[2] = {0, 0};
     float shake_ = 0;
     Vec2 savedVel_{0, 0};
+    // Hold-to-pause: a quick accidental touch while playing does nothing.
+    static constexpr float kHoldToPause = 0.6f;
+    uint64_t pauseFinger_ = 0;
+    float pauseHold_ = 0;
+    float pauseHint_ = 0;  // seconds left to show "Hold to pause"
     Color rink_, rinkEdge_, lines_, p1_, p2_, puckColor_;
 };
 
@@ -91,8 +96,8 @@ void AirHockeyGame::layout() {
 }
 
 Rect AirHockeyGame::pauseButton() const {
-    const float sz = ctx_.px(44);
-    return {table_.x + ctx_.px(8), table_.cy() - sz * 0.5f, sz, sz};
+    const float sz = ctx_.px(40);
+    return {table_.x + ctx_.px(6), table_.cy() - sz * 0.5f, sz, sz};
 }
 
 void AirHockeyGame::startMatch() {
@@ -109,8 +114,22 @@ void AirHockeyGame::startMatch() {
 
 void AirHockeyGame::onPointer(const PointerEvent& e) {
     if (paused_) return;
+    const bool live = state_ != State::Start && state_ != State::Won;
+    if (e.type == PointerEvent::Type::Down && live && pauseFinger_ == 0 && pauseButton().inset(-ctx_.px(4)).contains(e.x, e.y)) {
+        pauseFinger_ = e.id;
+        pauseHold_ = 0;
+        return;
+    }
+    if (e.id == pauseFinger_) {
+        const bool lifted = e.type == PointerEvent::Type::Up || e.type == PointerEvent::Type::Cancel;
+        if (lifted || !pauseButton().inset(-ctx_.px(16)).contains(e.x, e.y)) {
+            if (lifted && pauseHold_ < kHoldToPause) pauseHint_ = 1.6f;
+            pauseFinger_ = 0;
+            pauseHold_ = 0;
+        }
+        return;
+    }
     if (e.type == PointerEvent::Type::Down) {
-        if (pauseButton().contains(e.x, e.y)) return;
         if (state_ == State::Start || state_ == State::Won) return;  // handled by UI
         int player = e.y >= table_.cy() ? 0 : 1;
         if (finger_[player] == 0) {
@@ -130,6 +149,16 @@ void AirHockeyGame::update(float dt) {
     layout();
     for (float& f : hitFlash_) f = std::max(0.0f, f - dt * 4);
     shake_ = std::max(0.0f, shake_ - dt * 3);
+    pauseHint_ = std::max(0.0f, pauseHint_ - dt);
+    if (pauseFinger_ != 0 && !paused_) {
+        pauseHold_ += dt;
+        if (pauseHold_ >= kHoldToPause) {
+            paused_ = true;
+            pauseFinger_ = 0;
+            pauseHold_ = 0;
+            ctx_.vibrate(15);
+        }
+    }
     if (paused_ || state_ == State::Start || state_ == State::Won) return;
 
     if (state_ == State::Countdown || state_ == State::Goal) {
@@ -275,16 +304,30 @@ void AirHockeyGame::render() {
     // Pause button on the centre line.
     const bool overlay = paused_ || state_ == State::Start || state_ == State::Won;
     ui.setInputEnabled(!overlay);
-    if (state_ != State::Start && state_ != State::Won &&
-        ui.iconButton(pauseButton(), Icon::Pause, Color::hex(0xFFFFFF), Color(255, 255, 255, 30)))
-        paused_ = true;
+    if (state_ != State::Start && state_ != State::Won && !paused_) {
+        const Rect pb = pauseButton();
+        r.fillCircle(pb.cx(), pb.cy(), pb.w * 0.5f, Color(255, 255, 255, pauseFinger_ ? 60 : 28));
+        drawIcon(r, Icon::Pause, pb.inset(pb.w * 0.3f), Color(255, 255, 255, 200));
+        if (pauseFinger_) {
+            const float k = std::min(1.0f, pauseHold_ / kHoldToPause);
+            r.fillArc(pb.cx(), pb.cy(), pb.w * 0.5f - ctx_.px(2), ctx_.px(3), -1.5708f, -1.5708f + 6.2832f * k,
+                      Color::hex(0xFFFFFF));
+        }
+        if (pauseHint_ > 0) {
+            const float a = std::min(1.0f, pauseHint_ * 3);
+            Rect hint{pb.right() + ctx_.px(8), pb.cy() - ctx_.px(14), ctx_.px(118), ctx_.px(28)};
+            r.fillRoundRect(hint, ctx_.px(14), Color(20, 24, 32, static_cast<uint8_t>(230 * a)));
+            r.textIn("Hold to pause", hint, ctx_.px(12.5f), Color(255, 255, 255, static_cast<uint8_t>(255 * a)), FontId::Bold);
+        }
+    }
     ui.setInputEnabled(true);
 
     if (state_ == State::Countdown && !paused_) {
         int count = std::max(1, static_cast<int>(std::ceil(timer_)));
-        float frac = timer_ - std::floor(timer_);
-        float pxSize = ctx_.px(64) * (0.8f + 0.4f * frac);
-        for (int p = 0; p < 2; ++p) drawCentered(std::to_string(count), pxSize, Color(255, 255, 255, 230), p);
+        // Fixed font size (fade instead of scaling) keeps a single cached glyph atlas.
+        const float frac = timer_ - std::floor(timer_);
+        const Color c(255, 255, 255, static_cast<uint8_t>(110 + 140 * frac));
+        for (int p = 0; p < 2; ++p) drawCentered(std::to_string(count), ctx_.px(64), c, p);
     }
     if (state_ == State::Goal) {
         float a = std::min(1.0f, timer_ * 2);

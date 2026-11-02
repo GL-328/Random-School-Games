@@ -22,7 +22,8 @@ Hub::Hub(AppContext& ctx, std::function<void(const std::string&)> launchGame, st
     : ctx_(ctx), launch_(std::move(launchGame)), setTheme_(std::move(setTheme)) {}
 
 bool Hub::animating() const {
-    return trans_ < 1.0f || featuredAnim_ < 1.0f || confirm_.open || tab_ == Tab::Home || ctx_.updates.busy();
+    // Static screens render nothing until input arrives (the app sleeps between frames).
+    return trans_ < 1.0f || featuredAnim_ < 1.0f || ctx_.updates.busy();
 }
 
 void Hub::startTransition(int dir) {
@@ -119,13 +120,13 @@ void Hub::frame() {
     Rect area{s.x, s.y, s.w, nav.y - s.y};
 
     if (trans_ < 1.0f) {
-        trans_ = std::min(1.0f, trans_ + dt / 0.24f);
+        trans_ = std::min(1.0f, trans_ + dt / 0.18f);
         ui.animate();
     }
     const float e = easeOutCubic(trans_);
     ui.setInputEnabled(!confirm_.open);
-    r.setOffset((1.0f - e) * transDir_ * ctx_.px(36), 0);
-    r.setGlobalAlpha(0.2f + 0.8f * e);
+    r.setOffset((1.0f - e) * transDir_ * ctx_.px(24), 0);
+    r.setGlobalAlpha(0.35f + 0.65f * e);
 
     // Constrain content width on tablets.
     const float maxW = ctx_.px(720);
@@ -357,10 +358,12 @@ float Hub::homeTab(float y, const Rect& area) {
         if (g.featured) feat.push_back(&g);
     if (!feat.empty()) {
         featured_ %= static_cast<int>(feat.size());
-        featuredTimer_ += ui.dt();
-        if (featuredTimer_ > 6.0f && !ui.anyPointerDown()) {
+        // Wall-clock timer so it keeps working while the app sleeps between frames.
+        const double now = SDL_GetTicks() / 1000.0;
+        if (featuredTimer_ <= 0) featuredTimer_ = now;
+        if (now - featuredTimer_ > 6.0 && !ui.anyPointerDown()) {
             featured_ = (featured_ + 1) % static_cast<int>(feat.size());
-            featuredTimer_ = 0;
+            featuredTimer_ = now;
             featuredAnim_ = 0;
         }
         if (featuredAnim_ < 1) featuredAnim_ = std::min(1.0f, featuredAnim_ + ui.dt() / 0.35f);
@@ -373,7 +376,7 @@ float Hub::homeTab(float y, const Rect& area) {
             if (card.contains(p.sx, p.sy + ui.scrollY()) && std::fabs(dx) > ctx_.px(40) && std::fabs(dx) > std::fabs(dy) * 1.3f) {
                 int n = static_cast<int>(feat.size());
                 featured_ = (featured_ + (dx < 0 ? 1 : n - 1)) % n;
-                featuredTimer_ = 0;
+                featuredTimer_ = now;
                 featuredAnim_ = 0;
             }
         }
@@ -386,7 +389,7 @@ float Hub::homeTab(float y, const Rect& area) {
         r.pushClip(art);
         g.drawArt(r, art, ui.time());
         r.popClip();
-        r.setGlobalAlpha(0.2f + 0.8f * easeOutCubic(trans_));
+        r.setGlobalAlpha(0.35f + 0.65f * easeOutCubic(trans_));
         const float tx = card.x + ctx_.px(20);
         const float textW = art.x - ctx_.px(12) - tx;
         r.text("FEATURED", tx, card.y + ctx_.px(18), ctx_.px(11), Color(255, 255, 255, 200), FontId::Bold, Align::Left, textW);
@@ -567,98 +570,108 @@ float Hub::updatesTab(float y, const Rect& area) {
     const float pad = ctx_.px(18);
     y = pageHeader(y, area, "Updates", false, lastCheckedText());
 
-    // App card.
+    // App card. Its height is computed from its content first, so every element
+    // keeps the same 16-18dp padding from the card edges.
     const AppInfo info = ctx_.platform.appInfo();
     const auto phase = um.phase();
     const bool available = um.appUpdateAvailable();
+    const bool downloading = phase == UpdateManager::Phase::CheckingManifest ||
+                             phase == UpdateManager::Phase::DownloadingApp || phase == UpdateManager::Phase::DownloadingPack ||
+                             phase == UpdateManager::Phase::VerifyingApp;
+    const bool ready = phase == UpdateManager::Phase::ReadyToInstall || phase == UpdateManager::Phase::Installing;
+    const bool showCheck = !downloading && (!available || phase == UpdateManager::Phase::Error);
+    const bool hasError = !um.error().empty();
+    const float padX = ctx_.px(16);
     Rect card{area.x + pad, y, area.w - 2 * pad, 0};
-    const float inner = card.w - ctx_.px(32);
-    std::vector<std::string> notes;
+    const float inner = card.w - 2 * padX;
+    std::vector<std::string> notes, expl;
     if (available && !um.manifest()->app.notes.empty()) notes = r.wrap(um.manifest()->app.notes, inner, ctx_.px(13));
     if (notes.size() > 14) {
         notes.resize(14);
         notes.back() += " ...";
     }
-    float h = ctx_.px(150);
-    if (available) h += ctx_.px(34) + notes.size() * ctx_.px(19) + ctx_.px(70);
-    if (phase == UpdateManager::Phase::ReadyToInstall || phase == UpdateManager::Phase::Installing) h += ctx_.px(64);
-    if (!um.error().empty()) h += ctx_.px(54);
-    card.h = h;
-    r.fillRoundRect(card, ctx_.px(20), th.surface);
-    drawLogo(card.x + ctx_.px(16), card.y + ctx_.px(16), ctx_.px(44));
-    r.text("Got Bored", card.x + ctx_.px(74), card.y + ctx_.px(16), ctx_.px(17), th.text, FontId::Bold, Align::Left,
-           card.w - ctx_.px(90));
-    r.text("Installed version " + info.versionName, card.x + ctx_.px(74), card.y + ctx_.px(40), ctx_.px(13), th.textDim,
-           FontId::Regular, Align::Left, card.w - ctx_.px(90));
-    float cy = card.y + ctx_.px(76);
+    if (available && ready)
+        expl = r.wrap("Android will ask you to confirm the installation. If asked, allow Got Bored to "
+                      "\"Install unknown apps\". Your settings and scores are kept.",
+                      inner, ctx_.px(12));
 
-    // Status line.
+    // Pass 1: vertical layout.
+    const float headerY = ctx_.px(16);                 // logo + name (44dp)
+    const float statusY = headerY + ctx_.px(44) + ctx_.px(14);
+    float cy = statusY + ctx_.px(18);                  // after the status line
+    float actionY = -1, errorY = -1, notesY = -1, mainBtnY = -1, explY = -1;
+    if (downloading || showCheck) { actionY = cy + ctx_.px(12); cy = actionY + ctx_.px(44); }
+    if (hasError) { errorY = cy + ctx_.px(12); cy = errorY + ctx_.px(44); }
+    if (available) {
+        notesY = cy + ctx_.px(20);
+        cy = notesY + ctx_.px(28) + notes.size() * ctx_.px(19);
+        if (!downloading) { mainBtnY = cy + ctx_.px(10); cy = mainBtnY + ctx_.px(46); }
+        if (!expl.empty()) { explY = cy + ctx_.px(10); cy = explY + expl.size() * ctx_.px(17); }
+    }
+    card.h = cy + ctx_.px(18);
+
+    // Pass 2: draw.
+    r.fillRoundRect(card, ctx_.px(20), th.surface);
+    drawLogo(card.x + padX, card.y + headerY, ctx_.px(44));
+    r.text("Got Bored", card.x + ctx_.px(74), card.y + headerY, ctx_.px(17), th.text, FontId::Bold, Align::Left,
+           card.w - ctx_.px(90));
+    r.text("Installed version " + info.versionName, card.x + ctx_.px(74), card.y + headerY + ctx_.px(24), ctx_.px(13),
+           th.textDim, FontId::Regular, Align::Left, card.w - ctx_.px(90));
     std::string status = um.statusText();
     if (status.empty()) status = um.hasManifest() ? (available ? "An update is available" : "You're up to date")
                                                   : "Tap below to check for updates";
-    Color statusC = available ? th.accent : (um.hasManifest() ? th.success : th.textDim);
-    r.text(r.elide(status, inner, ctx_.px(13.5f), FontId::Bold), card.x + ctx_.px(16), cy, ctx_.px(13.5f), statusC, FontId::Bold);
-    cy += ctx_.px(26);
+    const Color statusC = available ? th.accent : (um.hasManifest() ? th.success : th.textDim);
+    r.text(status, card.x + padX, card.y + statusY, ctx_.px(13.5f), statusC, FontId::Bold, Align::Left, inner);
 
-    const bool downloading = phase == UpdateManager::Phase::CheckingManifest ||
-                             phase == UpdateManager::Phase::DownloadingApp || phase == UpdateManager::Phase::DownloadingPack ||
-                             phase == UpdateManager::Phase::VerifyingApp;
-    Rect btn{card.x + ctx_.px(16), cy, inner, ctx_.px(44)};
-    if (downloading) {
-        Rect bar{btn.x, btn.y + ctx_.px(6), btn.w - ctx_.px(96), ctx_.px(8)};
-        ui.progressBar(bar, um.progress(), th.accent);
-        std::string prog = formatBytes(um.bytesReceived());
-        if (um.bytesTotal() > 0) prog += " of " + formatBytes(static_cast<uint64_t>(um.bytesTotal()));
-        r.text(prog, bar.x, bar.bottom() + ctx_.px(6), ctx_.px(11.5f), th.textDim);
-        if (ui.button({btn.right() - ctx_.px(84), btn.y - ctx_.px(4), ctx_.px(84), ctx_.px(36)}, "Cancel",
-                      ButtonStyle::Secondary))
-            um.cancel();
-    } else if (!available || phase == UpdateManager::Phase::Error) {
-        if (ui.button(btn, "Check for updates", ButtonStyle::Primary, Icon::Refresh)) {
+    if (actionY >= 0) {
+        Rect btn{card.x + padX, card.y + actionY, inner, ctx_.px(44)};
+        if (downloading) {
+            const float cancelW = ctx_.px(84);
+            Rect bar{btn.x, btn.y + ctx_.px(10), btn.w - cancelW - ctx_.px(12), ctx_.px(8)};
+            ui.progressBar(bar, um.progress(), th.accent);
+            std::string prog = formatBytes(um.bytesReceived());
+            if (um.bytesTotal() > 0) prog += " of " + formatBytes(static_cast<uint64_t>(um.bytesTotal()));
+            r.text(prog, bar.x, bar.bottom() + ctx_.px(6), ctx_.px(11.5f), th.textDim, FontId::Regular, Align::Left, bar.w);
+            if (ui.button({btn.right() - cancelW, btn.y + ctx_.px(4), cancelW, ctx_.px(36)}, "Cancel", ButtonStyle::Secondary))
+                um.cancel();
+        } else if (ui.button(btn, "Check for updates", ButtonStyle::Primary, Icon::Refresh)) {
             um.clearError();
             um.checkForUpdates();
             ctx_.settings.setInt(keys::kLastUpdateCheck, nowSeconds());
         }
     }
-    cy += ctx_.px(52);
-
-    if (!um.error().empty()) {
-        Rect er{card.x + ctx_.px(16), cy, inner, ctx_.px(44)};
+    if (errorY >= 0) {
+        Rect er{card.x + padX, card.y + errorY, inner, ctx_.px(44)};
         r.fillRoundRect(er, ctx_.px(12), th.danger.alpha(0.14f));
-        r.text(r.elide(um.error(), inner - ctx_.px(24), ctx_.px(12.5f)), er.x + ctx_.px(12), er.y + ctx_.px(14),
-               ctx_.px(12.5f), th.danger);
-        cy += ctx_.px(54);
+        r.textIn(um.error(), er.inset(ctx_.px(12), 0), ctx_.px(12.5f), th.danger, FontId::Regular, Align::Left);
     }
-
-    if (available) {
+    if (notesY >= 0) {
         const Manifest* m = um.manifest();
-        r.text("What's new in " + m->app.version.str(), card.x + ctx_.px(16), cy, ctx_.px(15), th.text, FontId::Bold,
-               Align::Left, inner);
-        cy += ctx_.px(28);
+        float ny = card.y + notesY;
+        r.text("What's new in " + m->app.version.str(), card.x + padX, ny, ctx_.px(15), th.text, FontId::Bold, Align::Left,
+               inner);
+        ny += ctx_.px(28);
         for (const auto& line : notes) {
-            r.text(line, card.x + ctx_.px(16), cy, ctx_.px(13), th.textDim);
-            cy += ctx_.px(19);
+            r.text(line, card.x + padX, ny, ctx_.px(13), th.textDim, FontId::Regular, Align::Left, inner);
+            ny += ctx_.px(19);
         }
-        cy += ctx_.px(12);
-        Rect b{card.x + ctx_.px(16), cy, inner, ctx_.px(46)};
-        if (phase == UpdateManager::Phase::ReadyToInstall || phase == UpdateManager::Phase::Installing) {
-            if (ui.button(b, "Install update", ButtonStyle::Success, Icon::Download, phase == UpdateManager::Phase::ReadyToInstall))
-                um.installApp();
-            cy += ctx_.px(54);
-            auto expl = r.wrap("Android will ask you to confirm the installation. If asked, allow Got Bored to "
-                               "\"Install unknown apps\". Your settings and scores are kept.",
-                               inner, ctx_.px(12));
-            for (auto& l : expl) {
-                r.text(l, card.x + ctx_.px(16), cy, ctx_.px(12), th.textFaint);
-                cy += ctx_.px(17);
+        if (mainBtnY >= 0) {
+            Rect b{card.x + padX, card.y + mainBtnY, inner, ctx_.px(46)};
+            if (ready) {
+                if (ui.button(b, "Install update", ButtonStyle::Success, Icon::Download,
+                              phase == UpdateManager::Phase::ReadyToInstall))
+                    um.installApp();
+            } else if (ui.button(b, "Download " + formatBytes(m->app.apk.size), ButtonStyle::Primary, Icon::Download)) {
+                um.downloadApp();
             }
-            card.h = std::max(card.h, cy - card.y + ctx_.px(12));
-        } else if (!downloading) {
-            std::string label = "Download " + formatBytes(m->app.apk.size);
-            if (ui.button(b, label, ButtonStyle::Primary, Icon::Download)) um.downloadApp();
+        }
+        float ey = card.y + explY;
+        for (auto& l : expl) {
+            r.text(l, card.x + padX, ey, ctx_.px(12), th.textFaint, FontId::Regular, Align::Left, inner);
+            ey += ctx_.px(17);
         }
     }
-    y = std::max(card.bottom(), cy) + ctx_.px(20);
+    y = card.bottom() + ctx_.px(20);
 
     // Game content packs.
     y = sectionTitle(y, area, "Game themes");
@@ -975,7 +988,6 @@ float Hub::aboutPage(float y, const Rect& area) {
                              {"stb_truetype", "Public domain / MIT"},
                              {"miniz", "MIT licence"},
                              {"Inter font", "SIL Open Font Licence 1.1"},
-                             {"DejaVu Sans (chess glyphs)", "Bitstream Vera licence"},
                              {"Chessnut pieces (Alexis Luengas)", "Apache 2.0 licence"}};
     const int nLibs = static_cast<int>(sizeof(libs) / sizeof(libs[0]));
     // Name and licence on separate lines so long names never collide.

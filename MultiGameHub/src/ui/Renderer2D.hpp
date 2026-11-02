@@ -5,6 +5,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,7 @@ enum class Align { Left, Center, Right };
 class Renderer2D {
 public:
     Renderer2D(SDL_Renderer* r, FontSystem& fonts) : r_(r), fonts_(fonts) {}
+    ~Renderer2D() { clearImages(); }
 
     SDL_Renderer* sdl() const { return r_; }
     FontSystem& fonts() { return fonts_; }
@@ -51,6 +53,10 @@ public:
     void fillConvex(const std::vector<Vec2f>& pts, Color c);
     // Draws part of a texture (UVs in 0..1) into dst; honours offset/rotation/alpha.
     void image(SDL_Texture* tex, const Rect& dst, float u0, float v0, float u1, float v1, Color tint = Color(255, 255, 255));
+    // Small PNG assets (cached after first use; freed by clearImages()).
+    void setAssetRoot(std::string root) { assetRoot_ = std::move(root); }
+    SDL_Texture* asset(const std::string& name);
+    void clearImages();
 
     // ---- text (y is the top of the line box)
     // maxWidth > 0 shortens the string with "..." so it never exceeds that width.
@@ -92,6 +98,8 @@ private:
     std::vector<int> idx_;
     std::vector<PN> path_;
     std::vector<SDL_Rect> clips_;
+    std::string assetRoot_;
+    std::map<std::string, SDL_Texture*> images_;
 };
 
 }  // namespace mgh

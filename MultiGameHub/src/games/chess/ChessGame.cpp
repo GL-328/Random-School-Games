@@ -56,9 +56,12 @@ public:
         dark_ = themeColor(theme, "dark", Color::hex(0x769656));
         showHistory_ = ctx.settings.getBool(keys::kChessShowHistory, true);
         // Piece artwork is loaded only while chess is open and freed on exit.
-        if (SDL_Surface* s = SDL_LoadPNG(ctx.assetPath("pieces/chessnut.png").c_str())) {
-            pieces_ = SDL_CreateTextureFromSurface(ctx.r.sdl(), s);
-            SDL_DestroySurface(s);
+        if (SDL_Surface* loaded = SDL_LoadPNG(ctx.assetPath("pieces/chessnut.png").c_str())) {
+            // Palette PNG -> straight RGBA so transparency is kept on every renderer.
+            SDL_Surface* s = SDL_ConvertSurface(loaded, SDL_PIXELFORMAT_RGBA32);
+            SDL_DestroySurface(loaded);
+            if (s) pieces_ = SDL_CreateTextureFromSurface(ctx.r.sdl(), s);
+            if (s) SDL_DestroySurface(s);
             if (pieces_) {
                 SDL_SetTextureBlendMode(pieces_, SDL_BLENDMODE_BLEND);
                 SDL_SetTextureScaleMode(pieces_, SDL_SCALEMODE_LINEAR);
@@ -81,7 +84,7 @@ public:
     void onPointer(const PointerEvent& e) override;
     void update(float dt) override {
         if (anim_.active) {
-            anim_.t += dt / 0.15f;
+            anim_.t += dt / 0.12f;
             if (anim_.t >= 1) anim_.active = false;
         }
         const float target = menuOpen_ ? 1.0f : 0.0f;
@@ -118,6 +121,7 @@ private:
     int dragFrom_ = -1;
     bool dragging_ = false;
     float dragX_ = 0, dragY_ = 0, downX_ = 0, downY_ = 0;
+    bool wasSelected_ = false;
 
     struct Anim {
         bool active = false;
@@ -176,30 +180,41 @@ Rect ChessGame::squareRect(int sq) const {
 // ---------------------------------------------------------------- input / moves
 
 void ChessGame::onPointer(const PointerEvent& e) {
+    // Selection and moves happen on touch-down (no waiting for the finger to lift);
+    // dragging a piece and dropping it also works.
     if (menuOpen_ || confirmRestart_ || promo_ || game_.isOver()) return;
     if (e.type == PointerEvent::Type::Down) {
         if (dragId_ != 0) return;
-        int sq = squareAt(e.x, e.y);
+        const int sq = squareAt(e.x, e.y);
         if (sq < 0) return;
-        Piece pc = game_.position().board[sq];
-        if (pc && colorOf(pc) == game_.position().side) {
+        const Piece pc = game_.position().board[sq];
+        const bool own = pc && colorOf(pc) == game_.position().side;
+        if (selected_ >= 0 && sq != selected_ && !own &&
+            (game_.findMove(selected_, sq) || game_.needsPromotionChoice(selected_, sq))) {
+            tryMove(selected_, sq, true);
+            return;
+        }
+        if (own) {
+            wasSelected_ = selected_ == sq;
+            selected_ = sq;
             dragId_ = e.id;
             dragFrom_ = sq;
             dragX_ = downX_ = e.x;
             dragY_ = downY_ = e.y;
             dragging_ = false;
+        } else {
+            selected_ = -1;
         }
     } else if (e.type == PointerEvent::Type::Move && e.id == dragId_) {
         dragX_ = e.x;
         dragY_ = e.y;
-        if (std::hypot(e.x - downX_, e.y - downY_) > ctx_.px(10)) {
-            dragging_ = true;
-            selected_ = dragFrom_;
-        }
+        if (std::hypot(e.x - downX_, e.y - downY_) > ctx_.px(8)) dragging_ = true;
     } else if ((e.type == PointerEvent::Type::Up || e.type == PointerEvent::Type::Cancel) && e.id == dragId_) {
         if (dragging_ && e.type == PointerEvent::Type::Up) {
-            int to = squareAt(e.x, e.y);
+            const int to = squareAt(e.x, e.y);
             if (to >= 0 && to != dragFrom_) tryMove(dragFrom_, to, false);
+        } else if (!dragging_ && wasSelected_) {
+            selected_ = -1;  // tapping the selected piece again deselects it
         }
         dragging_ = false;
         dragId_ = 0;
@@ -550,22 +565,6 @@ void ChessGame::render() {
     drawBar(Black, topBar_);
     drawBar(White, bottomBar_);
     drawBoard();
-
-    if (!modal && !game_.isOver()) {
-        for (const auto& p : ui.pointers()) {
-            if (!p.releasedNow || p.dragged || p.consumed) continue;
-            int sq = squareAt(p.x, p.y);
-            if (sq < 0 || squareAt(p.sx, p.sy) != sq) continue;
-            Piece pc = game_.position().board[sq];
-            if (selected_ >= 0 && sq != selected_) {
-                tryMove(selected_, sq, true);
-            } else if (pc && colorOf(pc) == game_.position().side) {
-                selected_ = (selected_ == sq) ? -1 : sq;
-            } else {
-                selected_ = -1;
-            }
-        }
-    }
 
     // Toolbar: icon over label, equal-width cells.
     r.fillRect({toolbar_.x, toolbar_.y, toolbar_.w, ctx_.screen.bottom() - toolbar_.y}, th.bgElevated);

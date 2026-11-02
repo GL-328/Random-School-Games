@@ -108,8 +108,8 @@ bool App::init() {
     std::vector<unsigned char> data;
     if (!loadAsset("fonts/ui.otf", data) || !fonts_->load(FontId::Regular, data)) return false;
     if (!loadAsset("fonts/bold.otf", data) || !fonts_->load(FontId::Bold, data)) return false;
-    if (!loadAsset("fonts/chess.ttf", data) || !fonts_->load(FontId::Chess, data)) return false;
     r_ = std::make_unique<Renderer2D>(renderer_, *fonts_);
+    r_->setAssetRoot(assetRootPath());
     ui_ = std::make_unique<Ui>(*r_);
 
     IStorage& st = platform_->storage();
@@ -247,6 +247,7 @@ void App::handleEvent(const SDL_Event& e) {
             pe.id = static_cast<uint64_t>(e.tfinger.fingerID) + 1;  // 0 means "none" internally
             pe.x = e.tfinger.x * pixelW_;
             pe.y = e.tfinger.y * pixelH_;
+            pe.t = static_cast<double>(e.tfinger.timestamp) / 1e9;
             dispatchPointer(pe);
             break;
         }
@@ -270,11 +271,13 @@ void App::handleEvent(const SDL_Event& e) {
             updateMetrics();
             break;
         case SDL_EVENT_LOW_MEMORY:
-            fonts_->clear();  // atlases are re-created on demand
+            fonts_->clear();  // atlases and images are re-created on demand
+            r_->clearImages();
             break;
         case SDL_EVENT_RENDER_DEVICE_RESET:
         case SDL_EVENT_RENDER_TARGETS_RESET:
             fonts_->clear();
+            r_->clearImages();
             break;
         default:
             break;
@@ -298,9 +301,10 @@ void App::frame(float dt) {
         curtain_ = std::min(1.0f, curtain_ + speed);
         if (curtain_ >= 1.0f) {
             if (pendingClose_) {
-                game_.reset();  // frees every resource the game owned
+                game_.reset();  // frees every resource the game owned (textures, state)
                 gameId_.clear();
-                fonts_->clear();  // drop glyph atlases baked for the game
+                // Glyph atlases are kept: re-baking them on return caused a visible hitch.
+                // Unused sizes are evicted by FontSystem's LRU instead.
                 pendingClose_ = false;
             }
             if (!pendingLaunch_.empty()) {
@@ -392,6 +396,8 @@ int App::run(const AppOptions& opts) {
         frame(dt);
         if (scripted_ && script_.empty() && scriptWait_ <= 0) running_ = false;
     }
+    if (scripted_)
+        SDL_Log("font atlases: %d built, %zu cached at exit", fonts_->bakeCount(), fonts_->atlasCount());
     shutdown();
     return scriptExit_;
 }
@@ -443,14 +449,15 @@ void App::runScript() {
         if (op == "wait") {
             scriptWait_ = std::max(1, static_cast<int>(f(c, 0)));
         } else if (op == "tap") {
-            dispatchPointer({PointerEvent::Type::Down, 9001, X(f(c, 0)), Y(f(c, 1))});
-            dispatchPointer({PointerEvent::Type::Up, 9001, X(f(c, 0)), Y(f(c, 1))});
+            const double now = frameCounter_ / 60.0;
+            dispatchPointer({PointerEvent::Type::Down, 9001, X(f(c, 0)), Y(f(c, 1)), now});
+            dispatchPointer({PointerEvent::Type::Up, 9001, X(f(c, 0)), Y(f(c, 1)), now + 0.05});
             scriptWait_ = 2;
         } else if (op == "down" || op == "move" || op == "up") {
             PointerEvent::Type t = op == "down" ? PointerEvent::Type::Down
                                    : op == "move" ? PointerEvent::Type::Move
                                                   : PointerEvent::Type::Up;
-            dispatchPointer({t, static_cast<uint64_t>(f(c, 0)) + 100, X(f(c, 1)), Y(f(c, 2))});
+            dispatchPointer({t, static_cast<uint64_t>(f(c, 0)) + 100, X(f(c, 1)), Y(f(c, 2)), frameCounter_ / 60.0});
         } else if (op == "back") {
             handleBack();
             scriptWait_ = 2;

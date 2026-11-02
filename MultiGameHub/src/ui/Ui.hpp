@@ -17,7 +17,8 @@ struct PointerEvent {
     enum class Type { Down, Move, Up, Cancel };
     Type type;
     uint64_t id;
-    float x, y;  // pixels
+    float x, y;     // pixels
+    double t = 0;   // event time in seconds (used for fling velocity)
 };
 
 struct ScrollState {
@@ -27,7 +28,8 @@ struct ScrollState {
     float viewport = 0;
     uint64_t dragId = 0;
     bool dragging = false;
-    float lastPointerY = 0;
+    float anchorPointerY = 0;  // finger y when the drag started
+    float anchorScroll = 0;    // unclamped scroll offset when the drag started
 };
 
 enum class ButtonStyle { Primary, Secondary, Ghost, Danger, Success };
@@ -43,6 +45,21 @@ public:
         bool releasedNow = false;  // went up this frame
         bool dragged = false;      // moved beyond the tap slop
         bool consumed = false;     // claimed by a scroll view / game
+        // Recent (time, y) samples for velocity estimation.
+        double st[8] = {};
+        float sy8[8] = {};
+        int ns = 0;
+        void sample(double t, float yy) {
+            if (ns == 8) {
+                for (int i = 1; i < 8; ++i) { st[i - 1] = st[i]; sy8[i - 1] = sy8[i]; }
+                ns = 7;
+            }
+            st[ns] = t;
+            sy8[ns] = yy;
+            ++ns;
+        }
+        // Vertical velocity in px/s over the last ~100 ms of movement.
+        float velocityY() const;
     };
 
     Ui(Renderer2D& r) : r_(r) {}

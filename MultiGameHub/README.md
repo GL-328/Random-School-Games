@@ -4,7 +4,7 @@ A lightweight Android game collection ("N games in 1") written in **C++20 + SDL3
 It ships three fully playable games (**Chess** for two players, real-time **Air Hockey** for
 two players, and **Snake**) and has an in-app update system backed by **GitHub Releases**.
 
-* **APK size: ~2.0 MB** (arm64-v8a). There are no audio files and almost no images: the UI is vector-drawn and all sounds are synthesised at runtime. The only bundled assets are three subset fonts (37 KB) and the chess piece artwork (one 28 KB PNG, loaded only while chess is open).
+* **APK size: ~2.0 MB** (arm64-v8a). There are no audio files and almost no images: the UI is vector-drawn and all sounds are synthesised at runtime. The only bundled assets are two subset fonts (32 KB) and the chess piece artwork (two PNGs, 31 KB; the board pieces are loaded only while chess is open).
 * Almost all logic is C++. Java is limited to SDL's glue plus one bridge class for HTTPS, the system package installer and vibration.
 * It is portable: shared code only talks to small platform interfaces, and there is already a desktop (Linux/macOS) implementation used for automated testing.
 
@@ -25,7 +25,7 @@ two players, and **Snake**) and has an in-app update system backed by **GitHub R
 | `src/audio` | Procedural synth (`IAudio`) |
 | `src/platform` | `Platform.hpp` interfaces; `android/` (JNI) and `desktop/` implementations |
 | `android/` | Manifest, vector icon, `HubActivity` + `PlatformBridge` (Java), Gradle project + wrapper |
-| `assets/fonts` | Subset Inter (UI) and DejaVu Sans (chess glyphs) |
+| `assets/fonts`, `assets/pieces` | Subset Inter fonts (UI) and the chess piece artwork |
 | `packs/` | Optional downloadable content packs (data only) |
 | `tests/` | Unit tests (chess perft, physics, snake, SHA-256, JSON, manifest, extraction, updater) and UI scripts |
 | `scripts/` | `build_apk.sh`, `fetch_deps.sh`, `make_release.py`, `run_ui_tests.sh`, `check_jni.py` |
@@ -187,4 +187,4 @@ Please report anything that misbehaves on a device.
 
 ## Licences
 
-SDL3 (zlib), stb_truetype (public domain / MIT), miniz (MIT), Inter (SIL OFL 1.1), DejaVu Sans (Bitstream Vera licence), chessnut chess pieces by Alexis Luengas (Apache 2.0). See `licenses/`.
+SDL3 (zlib), stb_truetype (public domain / MIT), miniz (MIT), Inter (SIL OFL 1.1), chessnut chess pieces by Alexis Luengas (Apache 2.0). See `licenses/`.

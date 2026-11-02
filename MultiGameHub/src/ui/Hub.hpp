@@ -81,7 +81,7 @@ private:
     int transDir_ = 1;
     float navPill_ = 0;
     int featured_ = 0;
-    float featuredTimer_ = 0;
+    double featuredTimer_ = 0;  // SDL_GetTicks seconds of the last carousel change
     float featuredAnim_ = 1.0f;
     Confirm confirm_;
     float toggleAnim_[8] = {};

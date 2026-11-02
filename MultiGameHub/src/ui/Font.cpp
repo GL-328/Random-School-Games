@@ -53,9 +53,10 @@ void FontSystem::clear() { atlases_.clear(); }
 
 void FontSystem::beginFrame() {
     ++frame_;
-    // Drop atlases not used for ~10 seconds of rendered frames.
+    // Normal UI sizes stay cached (they are small and re-baking them causes hitches);
+    // only large atlases (big titles, scores) are dropped when unused for a while.
     for (auto it = atlases_.begin(); it != atlases_.end();) {
-        if (frame_ - it->second->lastUsed_ > 600) it = atlases_.erase(it);
+        if (it->first.second > 48 && frame_ - it->second->lastUsed_ > 900) it = atlases_.erase(it);
         else ++it;
     }
 }
@@ -73,7 +74,10 @@ bool FontAtlas::glyph(uint32_t cp, GlyphQuad& out) const {
 }
 
 FontAtlas* FontSystem::atlas(FontId id, float pixelSize) {
-    const int px = std::max(6, static_cast<int>(std::lround(pixelSize)));
+    int px = std::max(6, static_cast<int>(std::lround(pixelSize)));
+    // Large sizes are snapped to 8px steps so animated or slightly different
+    // sizes share one atlas instead of baking a new big texture each time.
+    if (px > 48) px = (px + 4) / 8 * 8;
     auto key = std::make_pair(static_cast<int>(id), px);
     auto it = atlases_.find(key);
     if (it != atlases_.end()) {
@@ -101,9 +105,12 @@ FontAtlas* FontSystem::atlas(FontId id, float pixelSize) {
     // Size the atlas from the glyph count (power of two, square-ish).
     const int pad = 2;
     const long area = static_cast<long>(cps.size()) * (px + pad) * (px + pad);
-    int w = 128;
-    while (static_cast<long>(w) * w < area * 13 / 10) w *= 2;
-    int h = w;
+    // Smallest power-of-two rectangle (not square) that fits the glyphs.
+    int w = 128, h = 128;
+    while (static_cast<long>(w) * h < area * 13 / 10) {
+        if (w <= h) w *= 2;
+        else h *= 2;
+    }
     std::vector<unsigned char> alpha(static_cast<size_t>(w) * h);
     std::vector<stbtt_packedchar> packed(cps.size());
 
@@ -169,6 +176,7 @@ FontAtlas* FontSystem::atlas(FontId id, float pixelSize) {
     }
     std::sort(atlas->glyphs_.begin(), atlas->glyphs_.end(), [](auto& a, auto& b) { return a.cp < b.cp; });
     atlas->lastUsed_ = frame_;
+    ++bakes_;
     FontAtlas* raw = atlas.get();
     atlases_[key] = std::move(atlas);
     return raw;
