@@ -1,13 +1,9 @@
 package com.gl328.multigamehub;
 
 import android.app.Activity;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
-import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.net.Uri;
@@ -17,7 +13,6 @@ import android.os.Vibrator;
 import android.provider.Settings;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -155,55 +150,33 @@ public final class PlatformBridge {
 
     // ------------------------------------------------------------------ installer
 
-    private static final String ACTION_INSTALL_STATUS = "com.gl328.multigamehub.INSTALL_STATUS";
+    // Updates are handed to Android's own installer screen (ACTION_VIEW on a
+    // content:// URI). This is the most compatible self-update path across
+    // manufacturers; the PackageInstaller-session flow used before could be
+    // aborted on some devices (e.g. Samsung) after the user tapped "Update".
     private static final int IN_IDLE = 0, IN_PENDING = 1, IN_WAITING = 2, IN_SUCCESS = 3, IN_FAILED = 4;
     private static volatile int installState = IN_IDLE;
     private static volatile String installMessage = "";
-    private static BroadcastReceiver receiver;
+    private static volatile boolean installerShown = false;
 
-    static void init(Context ctx) {
-        if (receiver != null) return;
-        receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
-                switch (status) {
-                    case PackageInstaller.STATUS_PENDING_USER_ACTION: {
-                        // Android requires the user to confirm the update: show the system dialog.
-                        Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
-                        if (confirm != null) {
-                            confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            context.startActivity(confirm);
-                        }
-                        installState = IN_WAITING;
-                        break;
-                    }
-                    case PackageInstaller.STATUS_SUCCESS:
-                        installState = IN_SUCCESS;
-                        break;
-                    default: {
-                        String msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
-                        installMessage = msg != null ? msg : "Installation failed or was cancelled";
-                        installState = IN_FAILED;
-                    }
-                }
-            }
-        };
-        IntentFilter filter = new IntentFilter(ACTION_INSTALL_STATUS);
-        if (Build.VERSION.SDK_INT >= 33) {
-            ctx.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            ctx.registerReceiver(receiver, filter);
-        }
+    static void init(Context ctx) {}
+
+    static void shutdown(Context ctx) {}
+
+    /** Called from HubActivity.onPause: the system installer screen has covered the app. */
+    static void onActivityPaused() {
+        if (installState == IN_WAITING) installerShown = true;
     }
 
-    static void shutdown(Context ctx) {
-        if (receiver != null) {
-            try {
-                ctx.unregisterReceiver(receiver);
-            } catch (IllegalArgumentException ignored) {
-            }
-            receiver = null;
+    /**
+     * Called from HubActivity.onResume. A successful update replaces and restarts the
+     * app, so coming back to this same process means the update was not installed.
+     */
+    static void onActivityResumed() {
+        if (installState == IN_WAITING && installerShown) {
+            installMessage = "The update wasn't installed. Tap Install update to try again.";
+            installState = IN_FAILED;
+            installerShown = false;
         }
     }
 
@@ -263,36 +236,23 @@ public final class PlatformBridge {
         }
     }
 
-    /** Starts a PackageInstaller session. Returns null on success, otherwise an error. */
+    /** Opens Android's installer for the verified APK. Returns null on success, otherwise an error. */
     public static String installApk(Context ctx, String path) {
         try {
-            File f = new File(path);
-            PackageInstaller pi = ctx.getPackageManager().getPackageInstaller();
-            PackageInstaller.SessionParams params =
-                    new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-            params.setAppPackageName(ctx.getPackageName());
-            params.setSize(f.length());
-            int sessionId = pi.createSession(params);
-            try (PackageInstaller.Session session = pi.openSession(sessionId)) {
-                try (OutputStream out = session.openWrite("base.apk", 0, f.length());
-                     InputStream in = new FileInputStream(f)) {
-                    byte[] buf = new byte[65536];
-                    int n;
-                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                    session.fsync(out);
-                }
-                Intent intent = new Intent(ACTION_INSTALL_STATUS).setPackage(ctx.getPackageName());
-                int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-                if (Build.VERSION.SDK_INT >= 31) piFlags |= PendingIntent.FLAG_MUTABLE;
-                PendingIntent pending = PendingIntent.getBroadcast(ctx, sessionId, intent, piFlags);
-                installState = IN_PENDING;
-                installMessage = "";
-                session.commit(pending.getIntentSender());
-            }
+            if (!new File(path).isFile()) return "update file is missing, please download again";
+            Uri uri = ApkProvider.register(path);
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setDataAndType(uri, ApkProvider.APK_MIME);
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            if (!(ctx instanceof Activity)) i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            installMessage = "";
+            installerShown = false;
+            installState = IN_WAITING;
+            ctx.startActivity(i);
             return null;
         } catch (Exception e) {
             installState = IN_FAILED;
-            return "could not start installer: " + e.getMessage();
+            return "could not open the installer: " + e.getMessage();
         }
     }
 

@@ -601,7 +601,11 @@ float Hub::updatesTab(float y, const Rect& area) {
     float cy = statusY + ctx_.px(18);                  // after the status line
     float actionY = -1, errorY = -1, notesY = -1, mainBtnY = -1, explY = -1;
     if (downloading || showCheck) { actionY = cy + ctx_.px(12); cy = actionY + ctx_.px(44); }
+    // If installing fails, offer the release page as a manual fallback.
+    const bool showWebLink = hasError && available;
+    float webY = -1;
     if (hasError) { errorY = cy + ctx_.px(12); cy = errorY + ctx_.px(44); }
+    if (showWebLink) { webY = cy + ctx_.px(8); cy = webY + ctx_.px(40); }
     if (available) {
         notesY = cy + ctx_.px(20);
         cy = notesY + ctx_.px(28) + notes.size() * ctx_.px(19);
@@ -645,6 +649,9 @@ float Hub::updatesTab(float y, const Rect& area) {
         r.fillRoundRect(er, ctx_.px(12), th.danger.alpha(0.14f));
         r.textIn(um.error(), er.inset(ctx_.px(12), 0), ctx_.px(12.5f), th.danger, FontId::Regular, Align::Left);
     }
+    if (webY >= 0 && ui.button({card.x + padX, card.y + webY, inner, ctx_.px(40)}, "Get the APK from GitHub",
+                               ButtonStyle::Secondary, Icon::Download))
+        ctx_.platform.openUrl("https://github.com/" MGH_UPDATE_REPO_STR "/releases/latest");
     if (notesY >= 0) {
         const Manifest* m = um.manifest();
         float ny = card.y + notesY;

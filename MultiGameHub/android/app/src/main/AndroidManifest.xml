@@ -32,7 +32,7 @@
             android:name=".HubActivity"
             android:label="@string/app_name"
             android:alwaysRetainTaskState="true"
-            android:launchMode="singleInstance"
+            android:launchMode="singleTask"
             android:screenOrientation="portrait"
             android:configChanges="layoutDirection|locale|grammaticalGender|fontScale|fontWeightAdjustment|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation|density"
             android:preferMinimalPostProcessing="true"
@@ -42,5 +42,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Serves only the verified update APK to Android's installer (read-only). -->
+        <provider
+            android:name=".ApkProvider"
+            android:authorities="com.gl328.multigamehub.apkprovider"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

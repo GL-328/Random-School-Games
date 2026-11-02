@@ -452,9 +452,11 @@ TEST_CASE("storage: cache clearing and stale cleanup") {
     TempStorage st(dir);
     StorageManager sm(st);
     writeFile(sm.downloadsDir() + "/half.apk.part", std::string(100, 'x'));
+    writeFile(sm.downloadsDir() + "/update.apk", std::string(100, 'x'));
     fs::create_directories(sm.packsDir() + "/chess.staging");
     sm.cleanupStale();
     CHECK(!fs::exists(sm.downloadsDir() + "/half.apk.part"));
+    CHECK(!fs::exists(sm.downloadsDir() + "/update.apk"));
     CHECK(!fs::exists(sm.packsDir() + "/chess.staging"));
     writeFile(st.cacheDir() + "/junk.bin", std::string(2048, 'x'));
     CHECK(sm.cacheSize() >= 2048u);

@@ -21,6 +21,18 @@ public class HubActivity extends SDLActivity {
     }
 
     @Override
+    protected void onPause() {
+        PlatformBridge.onActivityPaused();
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        PlatformBridge.onActivityResumed();
+    }
+
+    @Override
     protected void onDestroy() {
         PlatformBridge.shutdown(getApplicationContext());
         super.onDestroy();

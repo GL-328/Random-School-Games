@@ -122,7 +122,9 @@ void StorageManager::cleanupStale() {
         if (e.is_directory(ec) && !isValidGameId(name) && stale) fs::remove_all(e.path(), ec);
     }
     for (auto& e : fs::directory_iterator(downloadsDir(), ec)) {
-        if (e.path().extension() == ".part") fs::remove(e.path(), ec);
+        // Partial downloads, and a finished update APK left over from the last
+        // update (once installed it is no longer needed).
+        if (e.path().extension() == ".part" || e.path().filename() == "update.apk") fs::remove(e.path(), ec);
     }
 }
 

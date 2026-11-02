@@ -159,7 +159,7 @@ void UpdateManager::update() {
             error_ = st.message.empty() ? "Installation failed or was cancelled" : st.message;
             status_.clear();
         } else if (st.state == InstallStatus::State::WaitingForUser) {
-            status_ = "Waiting for you to confirm the installation...";
+            status_ = "Tap Update in Android's installer to confirm";
         }
         return;
     }
