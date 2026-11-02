@@ -49,11 +49,14 @@ public:
     void line(float x0, float y0, float x1, float y1, float thickness, Color c, bool roundCaps = true);
     void fillTriangle(Vec2f a, Vec2f b, Vec2f c, Color col);
     void fillConvex(const std::vector<Vec2f>& pts, Color c);
+    // Draws part of a texture (UVs in 0..1) into dst; honours offset/rotation/alpha.
+    void image(SDL_Texture* tex, const Rect& dst, float u0, float v0, float u1, float v1, Color tint = Color(255, 255, 255));
 
     // ---- text (y is the top of the line box)
+    // maxWidth > 0 shortens the string with "..." so it never exceeds that width.
     float text(const std::string& s, float x, float y, float px, Color c, FontId f = FontId::Regular,
-               Align align = Align::Left);
-    // Draws text vertically centred inside `r`.
+               Align align = Align::Left, float maxWidth = 0);
+    // Draws text vertically centred inside `r` (always elided to fit r.w).
     void textIn(const std::string& s, const Rect& r, float px, Color c, FontId f = FontId::Regular,
                 Align align = Align::Center);
     float measure(const std::string& s, float px, FontId f = FontId::Regular);

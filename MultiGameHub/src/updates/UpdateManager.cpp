@@ -128,7 +128,7 @@ void UpdateManager::downloadPack(const std::string& id) {
     if (busy() || !packInstallable(id)) return;
     const GameEntry* g = manifest_->findGame(id);
     activePack_ = id;
-    status_ = "Downloading " + g->name + " content...";
+    status_ = "Downloading " + g->name + " theme...";
     startDownload(g->pack->url, joinPath(storage_.downloadsDir(), id + ".zip.part"), g->pack->size,
                   Phase::DownloadingPack);
 }
@@ -280,7 +280,7 @@ void UpdateManager::finishPackDownload(const std::string& path) {
         return;
     }
     phase_ = Phase::Idle;
-    status_ = g->name + " content installed (" + formatBytes(r.bytes) + ")";
+    status_ = g->name + " theme installed (" + formatBytes(r.bytes) + ")";
     activePack_.clear();
     if (onPackInstalled) onPackInstalled(id);
 }

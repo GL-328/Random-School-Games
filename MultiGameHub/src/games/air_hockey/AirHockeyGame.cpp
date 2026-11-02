@@ -196,9 +196,8 @@ void AirHockeyGame::drawTable() {
     auto& r = ctx_.r;
     const float rail = ctx_.px(7);
     Rect outer = table_.inset(-rail);
-    r.fillRoundRect(outer.offset(0, ctx_.px(4)), ctx_.px(30), Color(0, 0, 0, 90));
     r.fillRoundRect(outer, ctx_.px(30), Color::hex(0x2B3442));
-    r.fillRoundRectGradient(table_, ctx_.px(24), rinkEdge_, rink_);
+    r.fillRoundRect(table_, ctx_.px(24), rink_);
     // Centre line and circle.
     const float lw = ctx_.px(3);
     r.fillRect({table_.x, table_.cy() - lw * 0.5f, table_.w, lw}, lines_);
@@ -220,13 +219,10 @@ void AirHockeyGame::drawPaddle(int i) {
     Vec2f c = toScreen(phys_.paddle[i].pos);
     const float rad = phys_.paddle[i].radius * scale_;
     Color col = i == 0 ? p1_ : p2_;
-    r.glow(c.x, c.y, rad * (1.6f + hitFlash_[i] * 0.5f), col.withA(static_cast<uint8_t>(70 + 80 * hitFlash_[i])));
-    r.fillCircle(c.x, c.y + ctx_.px(3), rad, Color(0, 0, 0, 80));
-    r.fillCircle(c.x, c.y, rad, col.darken(0.15f));
-    r.fillCircle(c.x, c.y, rad * 0.82f, col);
-    r.strokeCircle(c.x, c.y, rad * 0.55f, ctx_.px(2), col.lighten(0.35f));
-    r.fillCircle(c.x, c.y, rad * 0.38f, col.lighten(0.15f));
-    r.fillCircle(c.x - rad * 0.12f, c.y - rad * 0.14f, rad * 0.14f, Color(255, 255, 255, 110));
+    // Flat paddle: rim, face and handle knob.
+    r.fillCircle(c.x, c.y, rad, col.darken(0.22f + 0.12f * hitFlash_[i]));
+    r.fillCircle(c.x, c.y, rad * 0.8f, col);
+    r.fillCircle(c.x, c.y, rad * 0.4f, col.darken(0.22f));
 }
 
 void AirHockeyGame::drawCentered(const std::string& text, float px, Color c, int player, float yOffsetDp) {
@@ -263,18 +259,11 @@ void AirHockeyGame::render() {
     float sx = shake_ > 0 ? std::sin(ui.time() * 90) * shake_ * ctx_.px(4) : 0;
     r.setOffset(sx, 0);
     drawTable();
-    drawScores();
-    // Puck trail + puck.
-    for (size_t i = 0; i < trail_.size(); ++i) {
-        Vec2f p = toScreen(trail_[i]);
-        float a = 1.0f - static_cast<float>(i) / trail_.size();
-        r.fillCircle(p.x, p.y, phys_.puck.radius * scale_ * (0.4f + 0.5f * a), puckColor_.withA(static_cast<uint8_t>(40 * a)));
-    }
+    if (state_ != State::Start && state_ != State::Won) drawScores();
     {
         Vec2f p = toScreen(phys_.puck.pos);
         const float pr = phys_.puck.radius * scale_;
         if (state_ != State::Goal) {
-            r.fillCircle(p.x, p.y + ctx_.px(2), pr, Color(0, 0, 0, 100));
             r.fillCircle(p.x, p.y, pr, Color::hex(0x1A1D24));
             r.strokeCircle(p.x, p.y, pr * 0.82f, ctx_.px(2.5f), puckColor_);
         }
@@ -311,9 +300,9 @@ void AirHockeyGame::render() {
         for (int p = 0; p < 2; ++p) {
             Color pc = p == 0 ? p1_ : p2_;
             if (state_ == State::Start) {
-                drawCentered("Air Hockey", ctx_.px(34), Color::hex(0xFFFFFF), p, -30);
-                drawCentered("First to " + std::to_string(phys_.config().winScore) + " wins", ctx_.px(16), pc, p, 14);
-                drawCentered(p == 0 ? "Player 1" : "Player 2", ctx_.px(13), Color(255, 255, 255, 150), p, 44);
+                drawCentered(p == 0 ? "Player 1" : "Player 2", ctx_.px(13), Color(255, 255, 255, 160), p, -66);
+                drawCentered("Air Hockey", ctx_.px(32), Color::hex(0xFFFFFF), p, -32);
+                drawCentered("First to " + std::to_string(phys_.config().winScore) + " wins", ctx_.px(16), pc, p, 8);
             } else {
                 bool won = phys_.winner == p;
                 drawCentered(won ? "YOU WIN!" : "You lose", ctx_.px(won ? 40 : 26), won ? pc : Color(255, 255, 255, 170), p, -20);
@@ -322,9 +311,11 @@ void AirHockeyGame::render() {
             }
         }
         // Buttons on the centre line (usable by either player).
-        const float bw = ctx_.px(130), bh = ctx_.px(48);
+        const float bw = std::min(ctx_.px(130), (table_.w - ctx_.px(36)) * 0.5f), bh = ctx_.px(48);
         Rect play{table_.cx() + ctx_.px(6), table_.cy() - bh * 0.5f, bw, bh};
         Rect exitB{table_.cx() - ctx_.px(6) - bw, play.y, bw, bh};
+        r.fillRoundRect({exitB.x - ctx_.px(10), play.y - ctx_.px(10), bw * 2 + ctx_.px(32), bh + ctx_.px(20)}, ctx_.px(18),
+                        th.surface);
         if (ui.button(play, state_ == State::Start ? "Start" : "Rematch", ButtonStyle::Primary, Icon::Play)) {
             ctx_.sfx(Sfx::Click);
             startMatch();
@@ -334,8 +325,9 @@ void AirHockeyGame::render() {
 
     if (paused_) {
         r.fillRect(ctx_.screen, th.overlay);
-        Rect card{ctx_.safe.cx() - ctx_.px(140), ctx_.safe.cy() - ctx_.px(120), ctx_.px(280), ctx_.px(240)};
-        r.fillRoundRect(card, ctx_.px(22), th.surface);
+        const float cw = std::min(ctx_.px(280), ctx_.safe.w - ctx_.px(32));
+        Rect card{ctx_.safe.cx() - cw * 0.5f, ctx_.safe.cy() - ctx_.px(120), cw, ctx_.px(240)};
+        r.fillRoundRect(card, ctx_.px(16), th.surface);
         r.text("Paused", card.cx(), card.y + ctx_.px(18), ctx_.px(20), th.text, FontId::Bold, Align::Center);
         r.text(std::to_string(phys_.score[0]) + " - " + std::to_string(phys_.score[1]), card.cx(), card.y + ctx_.px(48),
                ctx_.px(14), th.textDim, FontId::Regular, Align::Center);

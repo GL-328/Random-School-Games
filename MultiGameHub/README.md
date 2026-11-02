@@ -4,7 +4,7 @@ A lightweight Android game collection ("N games in 1") written in **C++20 + SDL3
 It ships three fully playable games (**Chess** for two players, real-time **Air Hockey** for
 two players, and **Snake**) and has an in-app update system backed by **GitHub Releases**.
 
-* **APK size: ~2.0 MB** (arm64-v8a). There are no image or audio files: all graphics are vector-drawn and all sounds are synthesised at runtime. The only bundled assets are three subset fonts (37 KB).
+* **APK size: ~2.0 MB** (arm64-v8a). There are no audio files and almost no images: the UI is vector-drawn and all sounds are synthesised at runtime. The only bundled assets are three subset fonts (37 KB) and the chess piece artwork (one 28 KB PNG, loaded only while chess is open).
 * Almost all logic is C++. Java is limited to SDL's glue plus one bridge class for HTTPS, the system package installer and vibration.
 * It is portable: shared code only talks to small platform interfaces, and there is already a desktop (Linux/macOS) implementation used for automated testing.
 
@@ -29,7 +29,7 @@ two players, and **Snake**) and has an in-app update system backed by **GitHub R
 | `packs/` | Optional downloadable content packs (data only) |
 | `tests/` | Unit tests (chess perft, physics, snake, SHA-256, JSON, manifest, extraction, updater) and UI scripts |
 | `scripts/` | `build_apk.sh`, `fetch_deps.sh`, `make_release.py`, `run_ui_tests.sh`, `check_jni.py` |
-| `dist/` | Built APK |
+| `assets-src/` | Source artwork (chess piece SVGs) used to generate `assets/`, not shipped |
 
 ## Games
 
@@ -100,7 +100,7 @@ Android only installs an update if it is signed with the **same key** as the ins
   | `MGH_KEY_PASSWORD` | key password |
 
 * To publish a release, bump `VERSION`, commit, then tag `vX.Y.Z` and push the tag. CI tests, builds and signs the APK, zips the packs, writes and validates `manifest.json`, and creates the GitHub Release.
-* **The APK in `dist/` was signed with a temporary debug key**, because no release key exists yet. After you set up the secrets, uninstall that build once and install the first CI-built release. From then on, in-app updates will work.
+* Install the app from the [GitHub Releases page](https://github.com/GL-328/Random-School-Games/releases). Those APKs are signed with the release key, so in-app updates work between them. Builds signed with any other key (for example local `build_apk.sh` builds without the secrets) cannot update a release build.
 * Keep the keystore safe and never commit it (`*.jks` and `*.keystore` are git-ignored). If you lose it, existing installs cannot be updated.
 * Google Play restricts the `REQUEST_INSTALL_PACKAGES` permission. The self-update feature is meant for GitHub distribution; a Play Store build would remove it and rely on Play updates.
 
@@ -187,4 +187,4 @@ Please report anything that misbehaves on a device.
 
 ## Licences
 
-SDL3 (zlib), stb_truetype (public domain / MIT), miniz (MIT), Inter (SIL OFL 1.1), DejaVu Sans (Bitstream Vera licence). See `licenses/`.
+SDL3 (zlib), stb_truetype (public domain / MIT), miniz (MIT), Inter (SIL OFL 1.1), DejaVu Sans (Bitstream Vera licence), chessnut chess pieces by Alexis Luengas (Apache 2.0). See `licenses/`.

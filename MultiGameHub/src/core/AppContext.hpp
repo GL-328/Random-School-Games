@@ -46,6 +46,10 @@ public:
     // Optional downloaded content pack data (theme colours etc.). Returns null Json if absent.
     Json packTheme(const std::string& gameId) const;
 
+    // Path for SDL file loaders (APK asset on Android, assets/ folder on desktop).
+    std::string assetPath(const std::string& name) const { return assetRoot + name; }
+    std::string assetRoot;
+
     std::string toastText;
     float toastTime = 0;
 };

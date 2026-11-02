@@ -45,15 +45,19 @@ Color themeColor(const Json& j, const char* key, Color def) {
 
 // ====================================================================== init
 
-bool App::loadAsset(const std::string& name, std::vector<unsigned char>& out) {
+static std::string assetRootPath() {
     // On Android, relative paths are read from the APK's assets/ folder by SDL.
 #ifdef SDL_PLATFORM_ANDROID
-    const std::string path = name;
+    return "";
 #else
+    if (const char* env = SDL_getenv("MGH_ASSET_DIR")) return std::string(env) + "/";
     const char* base = SDL_GetBasePath();
-    std::string path = std::string(base ? base : "") + "assets/" + name;
-    if (const char* env = SDL_getenv("MGH_ASSET_DIR")) path = std::string(env) + "/" + name;
+    return std::string(base ? base : "") + "assets/";
 #endif
+}
+
+bool App::loadAsset(const std::string& name, std::vector<unsigned char>& out) {
+    const std::string path = assetRootPath() + name;
     size_t size = 0;
     void* data = SDL_LoadFile(path.c_str(), &size);
     if (!data) {
@@ -124,6 +128,7 @@ bool App::init() {
     updates_ = std::make_unique<UpdateManager>(platform_->network(), platform_->installer(), *storage_,
                                                platform_->appInfo().versionCode, manifestUrl);
     ctx_ = std::make_unique<AppContext>(*platform_, settings_, *audio_, *storage_, *updates_, *ui_, *r_);
+    ctx_->assetRoot = assetRootPath();
     updates_->onCheckFinished = [this](bool ok) {
         if (ok) settings_.setInt(keys::kLastUpdateCheck, nowSeconds());
         if (ok && updates_->appUpdateAvailable())
@@ -457,6 +462,13 @@ void App::runScript() {
             scriptWait_ = 30;
         } else if (op == "tab") {
             hub_->showTab(static_cast<Hub::Tab>(static_cast<int>(f(c, 0))));
+            scriptWait_ = 20;
+        } else if (op == "detail") {
+            hub_->openGame(c.args.empty() ? "" : c.args[0]);
+            scriptWait_ = 20;
+        } else if (op == "page") {
+            std::string which = c.args.empty() ? "" : c.args[0];
+            hub_->openPage(which == "about" ? Hub::Page::About : Hub::Page::Storage);
             scriptWait_ = 20;
         } else if (op == "expect_game") {
             std::string want = c.args.empty() ? "none" : c.args[0];

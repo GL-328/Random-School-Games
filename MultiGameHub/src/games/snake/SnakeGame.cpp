@@ -163,7 +163,7 @@ void SnakeGame::render() {
     auto& r = ctx_.r;
     auto& ui = ctx_.ui;
     const Theme& th = ctx_.theme();
-    r.fillRectGradient(ctx_.screen, th.bg, th.bgElevated);
+    r.fillRect(ctx_.screen, th.bg);
 
     const bool overlay = state_ == State::Paused || state_ == State::Over;
     ui.setInputEnabled(!overlay);
@@ -171,15 +171,21 @@ void SnakeGame::render() {
     // HUD.
     if (ui.iconButton({hud_.x, hud_.cy() - ctx_.px(22), ctx_.px(44), ctx_.px(44)}, Icon::Back, th.text, th.surface))
         requestExit();
-    Rect scoreBox{hud_.x + ctx_.px(56), hud_.y + ctx_.px(4), ctx_.px(110), hud_.h - ctx_.px(8)};
-    r.fillRoundRect(scoreBox, ctx_.px(14), th.surface);
-    r.text("SCORE", scoreBox.x + ctx_.px(12), scoreBox.y + ctx_.px(6), ctx_.px(10), th.textFaint, FontId::Bold);
-    r.text(std::to_string(logic_.score()), scoreBox.x + ctx_.px(12), scoreBox.y + ctx_.px(19), ctx_.px(20),
-           flash_ > 0 ? th.text.lerp(head_, flash_) : th.text, FontId::Bold);
-    Rect bestBox = scoreBox.offset(scoreBox.w + ctx_.px(8), 0);
-    r.fillRoundRect(bestBox, ctx_.px(14), th.surface);
-    r.text("BEST", bestBox.x + ctx_.px(12), bestBox.y + ctx_.px(6), ctx_.px(10), th.textFaint, FontId::Bold);
-    r.text(std::to_string(best_), bestBox.x + ctx_.px(12), bestBox.y + ctx_.px(19), ctx_.px(20), th.warning, FontId::Bold);
+    // Score boxes share the space between the back and pause buttons.
+    const float btn = ctx_.px(44), g = ctx_.px(8);
+    const float boxesW = hud_.w - 2 * btn - 4 * g;
+    const float boxW = std::min(ctx_.px(120), (boxesW - g) / 2);
+    const float boxesX = hud_.cx() - (boxW * 2 + g) * 0.5f;
+    Rect scoreBox{boxesX, hud_.y + ctx_.px(4), boxW, hud_.h - ctx_.px(8)};
+    Rect bestBox = scoreBox.offset(boxW + g, 0);
+    for (int k = 0; k < 2; ++k) {
+        const Rect& bx = k == 0 ? scoreBox : bestBox;
+        r.fillRoundRect(bx, ctx_.px(12), th.surface);
+        r.text(k == 0 ? "SCORE" : "BEST", bx.x + ctx_.px(12), bx.y + ctx_.px(6), ctx_.px(10), th.textFaint, FontId::Bold,
+               Align::Left, bx.w - ctx_.px(20));
+        r.text(std::to_string(k == 0 ? logic_.score() : best_), bx.x + ctx_.px(12), bx.y + ctx_.px(19), ctx_.px(20),
+               k == 0 ? th.text : th.warning, FontId::Bold, Align::Left, bx.w - ctx_.px(20));
+    }
     if (state_ == State::Playing &&
         ui.iconButton({hud_.right() - ctx_.px(44), hud_.cy() - ctx_.px(22), ctx_.px(44), ctx_.px(44)}, Icon::Pause,
                       th.text, th.surface))
@@ -191,42 +197,42 @@ void SnakeGame::render() {
     for (int y = 0; y < rows_; ++y)
         for (int x = (y & 1); x < cols_; x += 2) r.fillRect(cellRect(static_cast<float>(x), static_cast<float>(y)), boardAlt_);
 
-    // Food.
+    // Food: a flat apple.
     Cell f = logic_.food();
     if (f.x >= 0) {
         Rect fr = cellRect(static_cast<float>(f.x), static_cast<float>(f.y));
-        float bob = std::sin(pulse_ * 5) * 0.06f;
-        r.glow(fr.cx(), fr.cy(), cell_ * 1.1f, food_.withA(70));
-        r.fillCircle(fr.cx(), fr.cy() + cell_ * 0.04f, cell_ * (0.36f + bob * 0.3f), food_);
-        r.fillCircle(fr.cx() - cell_ * 0.1f, fr.cy() - cell_ * 0.08f, cell_ * 0.09f, Color(255, 255, 255, 120));
-        r.line(fr.cx(), fr.cy() - cell_ * 0.3f, fr.cx() + cell_ * 0.14f, fr.cy() - cell_ * 0.46f, cell_ * 0.1f,
-               Color::hex(0x6BD66B));
+        r.fillCircle(fr.cx(), fr.cy() + cell_ * 0.04f, cell_ * 0.34f, food_);
+        r.line(fr.cx(), fr.cy() - cell_ * 0.26f, fr.cx() + cell_ * 0.14f, fr.cy() - cell_ * 0.42f, cell_ * 0.1f,
+               Color::hex(0x5BBF5B));
     }
 
-    // Snake (interpolated between the previous and current cells).
+    // Snake: one continuous tube along the grid path. The head slides from its
+    // previous cell, the tail end slides out of the old tail cell, and every
+    // corner sits exactly on a cell centre, so turns are clean and round.
     const auto& body = logic_.body();
     const auto& prev = logic_.previousBody();
     const float t = state_ == State::Playing ? std::clamp(logic_.tickProgress(), 0.0f, 1.0f) : 1.0f;
     const size_t n = body.size();
-    std::vector<Vec2f> pts(n);
-    for (size_t i = 0; i < n; ++i) {
-        Cell to = body[i];
-        Cell from = i < prev.size() ? prev[i] : to;
-        // Body cells only interpolate once the snake has moved (prev == body before the first tick).
-        float k = (state_ == State::Playing) ? t : 1.0f;
-        pts[i] = {grid_.x + (from.x + (to.x - from.x) * k + 0.5f) * cell_,
-                  grid_.y + (from.y + (to.y - from.y) * k + 0.5f) * cell_};
-    }
-    for (size_t idx = n; idx-- > 0;) {
-        float u = n > 1 ? static_cast<float>(idx) / (n - 1) : 0;
-        Color c = head_.lerp(tail_, u);
-        float rad = cell_ * (0.44f - 0.1f * u);
-        if (idx + 1 < n) r.line(pts[idx].x, pts[idx].y, pts[idx + 1].x, pts[idx + 1].y, rad * 2, c, false);
-        r.fillCircle(pts[idx].x, pts[idx].y, rad, c);
-    }
+    auto centre = [&](float cx, float cy) { return Vec2f{grid_.x + (cx + 0.5f) * cell_, grid_.y + (cy + 0.5f) * cell_}; };
+    auto lerpCell = [&](Cell a, Cell b) {
+        return centre(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+    };
+    std::vector<Vec2f> path;
     if (n > 0) {
+        path.push_back(prev.empty() ? centre(body[0].x, body[0].y) : lerpCell(prev[0], body[0]));
+        for (size_t i = 1; i < n; ++i) path.push_back(centre(body[i].x, body[i].y));
+        if (prev.size() == n && n > 1) path.push_back(lerpCell(prev[n - 1], body[n - 1]));
+    }
+    const float width = cell_ * 0.78f;
+    for (int pass = 0; pass < 2; ++pass) {
+        const Color c = pass == 0 ? tail_.darken(0.25f) : head_;
+        const float w = pass == 0 ? width + ctx_.px(3) : width;
+        for (size_t i = 0; i + 1 < path.size(); ++i) r.line(path[i].x, path[i].y, path[i + 1].x, path[i + 1].y, w, c, false);
+        for (const Vec2f& p : path) r.fillCircle(p.x, p.y, w * 0.5f, c);  // round joins and ends
+    }
+    if (!path.empty()) {
         // Eyes look in the travel direction.
-        Vec2f h = pts[0];
+        const Vec2f h = path[0];
         float ex = 0, ey = 0;
         switch (logic_.direction()) {
             case Dir::Up: ey = -1; break;
@@ -234,12 +240,12 @@ void SnakeGame::render() {
             case Dir::Left: ex = -1; break;
             case Dir::Right: ex = 1; break;
         }
-        float side = cell_ * 0.2f;
-        for (int s = -1; s <= 1; s += 2) {
-            float x = h.x + ex * cell_ * 0.12f + (-ey) * side * s;
-            float y = h.y + ey * cell_ * 0.12f + ex * side * s;
+        const float side = cell_ * 0.19f;
+        for (int k = -1; k <= 1; k += 2) {
+            float x = h.x + ex * cell_ * 0.1f + (-ey) * side * k;
+            float y = h.y + ey * cell_ * 0.1f + ex * side * k;
             r.fillCircle(x, y, cell_ * 0.11f, Color::hex(0xFFFFFF));
-            r.fillCircle(x + ex * cell_ * 0.04f, y + ey * cell_ * 0.04f, cell_ * 0.055f, Color::hex(0x0B1A12));
+            r.fillCircle(x + ex * cell_ * 0.04f, y + ey * cell_ * 0.04f, cell_ * 0.055f, Color::hex(0x10231A));
         }
     }
 
@@ -249,7 +255,7 @@ void SnakeGame::render() {
         for (const auto& p : ui.pointers())
             if (p.down && padBtn_[i].inset(-ctx_.px(8)).contains(p.x, p.y)) down = true;
         Rect b = padBtn_[i];
-        r.fillRoundRect(b, ctx_.px(18), down ? th.accent : th.surface);
+        r.fillRoundRect(b, ctx_.px(16), down ? th.accent : th.surface);
         const float cx = b.cx(), cy = b.cy(), a = b.w * 0.18f;
         Color ac = down ? th.accentText : th.text;
         switch (i) {
@@ -262,20 +268,22 @@ void SnakeGame::render() {
     ui.setInputEnabled(true);
 
     if (state_ == State::Ready) {
-        Rect card{grid_.cx() - ctx_.px(130), grid_.cy() - ctx_.px(58), ctx_.px(260), ctx_.px(116)};
-        r.fillRoundRect(card, ctx_.px(18), th.surface.alpha(0.94f));
+        const float cw = std::min(ctx_.px(260), grid_.w - ctx_.px(24));
+        Rect card{grid_.cx() - cw * 0.5f, grid_.cy() - ctx_.px(58), cw, ctx_.px(116)};
+        r.fillRoundRect(card, ctx_.px(16), th.surface);
         r.text("Snake", card.cx(), card.y + ctx_.px(16), ctx_.px(22), th.text, FontId::Bold, Align::Center);
         r.text("Swipe or use the arrows", card.cx(), card.y + ctx_.px(52), ctx_.px(13.5f), th.textDim,
-               FontId::Regular, Align::Center);
+               FontId::Regular, Align::Center, card.w - ctx_.px(24));
         r.text("to start moving", card.cx(), card.y + ctx_.px(72), ctx_.px(13.5f), th.textDim, FontId::Regular,
-               Align::Center);
+               Align::Center, card.w - ctx_.px(24));
     }
 
     if (overlay) {
         r.fillRect(ctx_.screen, th.overlay);
         const bool over = state_ == State::Over;
-        Rect card{ctx_.safe.cx() - ctx_.px(145), ctx_.safe.cy() - ctx_.px(135), ctx_.px(290), ctx_.px(270)};
-        r.fillRoundRect(card, ctx_.px(22), th.surface);
+        const float ow = std::min(ctx_.px(290), ctx_.safe.w - ctx_.px(32));
+        Rect card{ctx_.safe.cx() - ow * 0.5f, ctx_.safe.cy() - ctx_.px(135), ow, ctx_.px(270)};
+        r.fillRoundRect(card, ctx_.px(16), th.surface);
         r.text(over ? "Game over" : "Paused", card.cx(), card.y + ctx_.px(18), ctx_.px(22), th.text, FontId::Bold,
                Align::Center);
         float by = card.y + ctx_.px(76);

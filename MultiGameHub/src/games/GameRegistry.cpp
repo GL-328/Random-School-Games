@@ -23,7 +23,6 @@ void chessArt(Renderer2D& r, const Rect& rc, float /*time*/) {
                        Color(255, 255, 255, static_cast<uint8_t>(18 + 10 * (y % 2))));
     const float px = s * 0.72f;
     const float cx = rc.cx(), cy = rc.cy() + s * 0.02f;
-    r.glow(cx, cy, s * 0.5f, Color(255, 255, 255, 50));
     r.glyphCentered(0x265E, cx + s * 0.02f, cy + s * 0.035f, px, Color(0, 0, 0, 70), FontId::Chess);
     r.glyphCentered(0x265E, cx, cy, px, Color::hex(0xFBFAF7), FontId::Chess);
     r.glyphCentered(0x2658, cx, cy, px, Color::hex(0x2A1F4D), FontId::Chess);
@@ -36,7 +35,6 @@ void airHockeyArt(Renderer2D& r, const Rect& rc, float time) {
     r.strokeCircle(rc.cx(), rc.cy(), s * 0.2f, s * 0.024f, line);
     const float wob = std::sin(time * 2.0f) * s * 0.05f;
     auto paddle = [&](float x, float y, Color c) {
-        r.glow(x, y, s * 0.26f, c.withA(90));
         r.fillCircle(x, y, s * 0.15f, c.darken(0.15f));
         r.fillCircle(x, y, s * 0.12f, c);
         r.fillCircle(x, y, s * 0.06f, c.lighten(0.3f));
@@ -66,7 +64,6 @@ void snakeArt(Renderer2D& r, const Rect& rc, float time) {
     r.fillCircle(hx + s * 0.02f, hy + s * 0.03f, s * 0.025f, Color::hex(0xFFFFFF));
     const float bob = std::sin(time * 4) * s * 0.01f;
     const float ax = rc.cx() + s * 0.3f, ay = rc.cy() + s * 0.22f + bob;
-    r.glow(ax, ay, s * 0.16f, Color(255, 90, 95, 90));
     r.fillCircle(ax, ay, s * 0.07f, Color::hex(0xFF5A5F));
 }
 
@@ -82,7 +79,7 @@ std::vector<GameInfo> buildRegistry() {
             "check, checkmate, stalemate and every draw rule (threefold repetition, fifty moves, "
             "insufficient material). Undo, move history and captured pieces included.";
         g.version = "1.0.0";
-        g.players = "2 players - same device";
+        g.players = "2 players";
         g.colorA = Color::hex(0x6A4CF5);
         g.colorB = Color::hex(0x2B1C7A);
         g.featured = true;
@@ -99,7 +96,7 @@ std::vector<GameInfo> buildRegistry() {
             "Real-time air hockey for two players on the same screen with true multi-touch. "
             "Smooth physics, goal celebrations, first to seven wins.";
         g.version = "1.0.0";
-        g.players = "2 players - simultaneous";
+        g.players = "2 players, live";
         g.colorA = Color::hex(0x0FB5C9);
         g.colorB = Color::hex(0x0B3F66);
         g.featured = true;

@@ -187,10 +187,7 @@ bool Ui::button(const Rect& rc, const std::string& label, ButtonStyle style, Ico
     Rect drawn = down ? rc.inset(px(1)) : rc;
     const float radius = std::min(drawn.h * 0.5f, px(14));
     if (bg.a > 0) {
-        if (style == ButtonStyle::Primary && enabled)
-            r_.fillRoundRectGradient(drawn, radius, bg.lighten(0.08f), bg.darken(0.06f));
-        else
-            r_.fillRoundRect(drawn, radius, bg);
+        r_.fillRoundRect(drawn, radius, bg);
     }
     const float fontPx = std::min(px(15), rc.h * 0.42f);
     if (icon != Icon::None) {

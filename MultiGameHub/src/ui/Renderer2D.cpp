@@ -272,6 +272,17 @@ void Renderer2D::fillConvex(const std::vector<Vec2f>& pts, Color c) {
     fillPathAA(path_, center, c, c, false, 0, 0);
 }
 
+void Renderer2D::image(SDL_Texture* tex, const Rect& d, float u0, float v0, float u1, float v1, Color tint) {
+    if (!tex) return;
+    SDL_FColor col = fc(tint);
+    verts_ = {{{d.x, d.y}, col, {u0, v0}},
+              {{d.right(), d.y}, col, {u1, v0}},
+              {{d.right(), d.bottom()}, col, {u1, v1}},
+              {{d.x, d.bottom()}, col, {u0, v1}}};
+    idx_ = {0, 1, 2, 0, 2, 3};
+    draw(tex);
+}
+
 // ------------------------------------------------------------------ text
 
 float Renderer2D::lineHeight(float px, FontId f) {
@@ -291,9 +302,11 @@ float Renderer2D::measure(const std::string& s, float px, FontId f) {
     return w;
 }
 
-float Renderer2D::text(const std::string& s, float x, float y, float px, Color c, FontId f, Align align) {
+float Renderer2D::text(const std::string& str, float x, float y, float px, Color c, FontId f, Align align,
+                       float maxWidth) {
     FontAtlas* a = fonts_.atlas(f, px);
-    if (!a || s.empty()) return 0;
+    if (!a || str.empty()) return 0;
+    const std::string s = maxWidth > 0 ? elide(str, maxWidth, px, f) : str;
     float w = measure(s, px, f);
     if (align == Align::Center) x -= w * 0.5f;
     else if (align == Align::Right) x -= w;
@@ -329,7 +342,7 @@ void Renderer2D::textIn(const std::string& s, const Rect& r, float px, Color c, 
     const float capH = px * 0.72f;
     const float y = r.cy() + capH * 0.5f - a->ascent();
     const float x = align == Align::Left ? r.x : align == Align::Right ? r.right() : r.cx();
-    text(s, x, y, px, c, f, align);
+    text(s, x, y, px, c, f, align, r.w);
 }
 
 std::vector<std::string> Renderer2D::wrap(const std::string& s, float width, float px, FontId f) {

@@ -172,7 +172,7 @@ void Hub::drawLogo(float x, float y, float size) {
     const Color cols[4] = {Color::hex(0x7C5CFF), Color::hex(0x1FC8AA), Color::hex(0xFF5470), Color::hex(0xFFB547)};
     for (int i = 0; i < 4; ++i) {
         float qx = x + (i % 2) * (q + g), qy = y + (i / 2) * (q + g);
-        r.fillRoundRectGradient({qx, qy, q, q}, q * 0.3f, cols[i].lighten(0.12f), cols[i].darken(0.08f));
+        r.fillRoundRect({qx, qy, q, q}, q * 0.3f, cols[i]);
     }
     r.fillCircle(x + q * 0.5f, y + q * 0.5f, q * 0.18f, Color(255, 255, 255, 220));
     r.fillTriangle({x + q + g + q * 0.35f, y + q * 0.3f}, {x + q + g + q * 0.72f, y + q * 0.5f},
@@ -181,7 +181,7 @@ void Hub::drawLogo(float x, float y, float size) {
 
 void Hub::gameTile(const GameInfo& g, const Rect& rc, float radius) {
     auto& r = ctx_.r;
-    r.fillRoundRectGradient(rc, radius, g.colorA, g.colorB);
+    r.fillRoundRect(rc, radius, g.colorA);
     r.pushClip(rc);
     g.drawArt(r, rc, ctx_.ui.time());
     r.popClip();
@@ -198,13 +198,15 @@ float Hub::pageHeader(float y, const Rect& area, const std::string& title, bool 
         if (ui.iconButton(b, Icon::Back, th.text, th.surface)) pop();
         x = b.right() + ctx_.px(10);
     }
-    r.text(title, x, y + ctx_.px(subtitle.empty() ? 14 : 6), ctx_.px(24), th.text, FontId::Bold);
-    if (!subtitle.empty()) r.text(subtitle, x, y + ctx_.px(36), ctx_.px(13), th.textDim);
+    const float maxW = area.right() - ctx_.px(18) - x;
+    r.text(title, x, y + ctx_.px(subtitle.empty() ? 14 : 6), ctx_.px(24), th.text, FontId::Bold, Align::Left, maxW);
+    if (!subtitle.empty()) r.text(subtitle, x, y + ctx_.px(36), ctx_.px(13), th.textDim, FontId::Regular, Align::Left, maxW);
     return y + ctx_.px(62);
 }
 
 float Hub::sectionTitle(float y, const Rect& area, const std::string& title) {
-    ctx_.r.text(title, area.x + ctx_.px(18), y + ctx_.px(8), ctx_.px(16), ctx_.theme().text, FontId::Bold);
+    ctx_.r.text(title, area.x + ctx_.px(18), y + ctx_.px(8), ctx_.px(16), ctx_.theme().text, FontId::Bold, Align::Left,
+                area.w - ctx_.px(36));
     return y + ctx_.px(36);
 }
 
@@ -213,7 +215,7 @@ void Hub::installedChip(const Rect& rc, const std::string& gameId) {
     const bool hasPack = ctx_.storage.hasPack(gameId);
     const bool upd = ctx_.updates.packUpdateAvailable(gameId);
     if (upd) ctx_.ui.pill(rc, "Update", th.warning.alpha(0.2f), th.warning);
-    else ctx_.ui.pill(rc, hasPack ? "Installed +" : "Installed", th.success.alpha(0.16f), th.success);
+    else ctx_.ui.pill(rc, hasPack ? "Themed" : "Installed", th.success.alpha(0.16f), th.success);
 }
 
 void Hub::drawNavBar(const Rect& bar) {
@@ -240,7 +242,7 @@ void Hub::drawNavBar(const Rect& bar) {
         const Color c = i == active ? th.accent : th.textDim;
         drawIcon(r, kTabIcons[i], {item.cx() - ctx_.px(11), bar.y + ctx_.px(13), ctx_.px(22), ctx_.px(22)}, c);
         r.text(kTabNames[i], item.cx(), bar.y + ctx_.px(43), ctx_.px(11), c, i == active ? FontId::Bold : FontId::Regular,
-               Align::Center);
+               Align::Center, tw - ctx_.px(4));
         if (i == static_cast<int>(Tab::Updates)) {
             int count = (ctx_.updates.appUpdateAvailable() ? 1 : 0) + ctx_.updates.pendingGameUpdates();
             if (count > 0) ui.badge(item.cx() + ctx_.px(14), bar.y + ctx_.px(12), std::to_string(count), th.danger, Color::hex(0xFFFFFF));
@@ -260,8 +262,9 @@ bool Hub::settingsToggleRow(const Rect& rc, Icon icon, const std::string& title,
     r.fillRoundRect(ib, ctx_.px(10), th.accentSoft);
     drawIcon(r, icon, ib.inset(ctx_.px(7)), th.accent);
     const float tx = ib.right() + ctx_.px(12);
-    r.text(title, tx, rc.y + ctx_.px(sub.empty() ? 21 : 12), ctx_.px(15), th.text, FontId::Bold);
-    if (!sub.empty()) r.text(r.elide(sub, rc.right() - tx - ctx_.px(76), ctx_.px(12.5f)), tx, rc.y + ctx_.px(33), ctx_.px(12.5f), th.textDim);
+    const float textW = rc.right() - tx - ctx_.px(76);
+    r.text(title, tx, rc.y + ctx_.px(sub.empty() ? 21 : 12), ctx_.px(15), th.text, FontId::Bold, Align::Left, textW);
+    if (!sub.empty()) r.text(sub, tx, rc.y + ctx_.px(33), ctx_.px(12.5f), th.textDim, FontId::Regular, Align::Left, textW);
     return ctx_.ui.toggle(rc.inset(ctx_.px(14), 0), value, anim);
 }
 
@@ -274,8 +277,10 @@ bool Hub::settingsLinkRow(const Rect& rc, Icon icon, const std::string& title, c
     r.fillRoundRect(ib, ctx_.px(10), th.accentSoft);
     drawIcon(r, icon, ib.inset(ctx_.px(7)), th.accent);
     const float tx = ib.right() + ctx_.px(12);
-    r.text(title, tx, rc.y + ctx_.px(sub.empty() ? 21 : 12), ctx_.px(15), th.text, FontId::Bold);
-    if (!sub.empty()) r.text(r.elide(sub, rc.right() - tx - ctx_.px(90), ctx_.px(12.5f)), tx, rc.y + ctx_.px(33), ctx_.px(12.5f), th.textDim);
+    const float trailW = trailing.empty() ? 0 : r.measure(trailing, ctx_.px(13)) + ctx_.px(8);
+    const float textW = rc.right() - tx - ctx_.px(40) - trailW;
+    r.text(title, tx, rc.y + ctx_.px(sub.empty() ? 21 : 12), ctx_.px(15), th.text, FontId::Bold, Align::Left, textW);
+    if (!sub.empty()) r.text(sub, tx, rc.y + ctx_.px(33), ctx_.px(12.5f), th.textDim, FontId::Regular, Align::Left, textW);
     float right = rc.right() - ctx_.px(14);
     drawIcon(r, Icon::ChevronRight, {right - ctx_.px(18), rc.cy() - ctx_.px(9), ctx_.px(18), ctx_.px(18)}, th.textFaint);
     if (!trailing.empty())
@@ -294,7 +299,8 @@ void Hub::drawConfirm() {
     const float h = ctx_.px(130) + lines.size() * ctx_.px(20);
     Rect card{ctx_.safe.cx() - w * 0.5f, ctx_.safe.cy() - h * 0.5f, w, h};
     r.fillRoundRect(card, ctx_.px(22), th.surface);
-    r.text(confirm_.title, card.x + ctx_.px(20), card.y + ctx_.px(20), ctx_.px(18), th.text, FontId::Bold);
+    r.text(confirm_.title, card.x + ctx_.px(20), card.y + ctx_.px(20), ctx_.px(18), th.text, FontId::Bold, Align::Left,
+           card.w - ctx_.px(40));
     float ly = card.y + ctx_.px(52);
     for (auto& l : lines) {
         r.text(l, card.x + ctx_.px(20), ly, ctx_.px(14), th.textDim);
@@ -322,7 +328,8 @@ float Hub::homeTab(float y, const Rect& area) {
 
     // Header.
     drawLogo(area.x + pad, y + ctx_.px(10), ctx_.px(40));
-    r.text("Got Bored", area.x + pad + ctx_.px(52), y + ctx_.px(8), ctx_.px(22), th.text, FontId::Bold);
+    const float headW = area.right() - pad - ctx_.px(48) - (area.x + pad + ctx_.px(52));
+    r.text("Got Bored", area.x + pad + ctx_.px(52), y + ctx_.px(8), ctx_.px(22), th.text, FontId::Bold, Align::Left, headW);
     r.text(std::to_string(games.size()) + " games ready - play offline", area.x + pad + ctx_.px(52), y + ctx_.px(36),
            ctx_.px(12.5f), th.textDim);
     if (ui.iconButton({area.right() - pad - ctx_.px(40), y + ctx_.px(10), ctx_.px(40), ctx_.px(40)}, Icon::Gear, th.text,
@@ -333,9 +340,10 @@ float Hub::homeTab(float y, const Rect& area) {
     // Update banner.
     if (ctx_.updates.appUpdateAvailable()) {
         Rect b{area.x + pad, y, area.w - 2 * pad, ctx_.px(60)};
-        r.fillRoundRectGradient(b, ctx_.px(16), th.accent.lighten(0.05f), th.accent.darken(0.2f));
+        r.fillRoundRect(b, ctx_.px(16), th.accent);
         drawIcon(r, Icon::Download, {b.x + ctx_.px(14), b.cy() - ctx_.px(12), ctx_.px(24), ctx_.px(24)}, th.accentText);
-        r.text("Update available", b.x + ctx_.px(50), b.y + ctx_.px(11), ctx_.px(15), th.accentText, FontId::Bold);
+        r.text("Update available", b.x + ctx_.px(50), b.y + ctx_.px(11), ctx_.px(15), th.accentText, FontId::Bold, Align::Left,
+               b.w - ctx_.px(66));
         r.text("Version " + ctx_.updates.manifest()->app.version.str() + " - tap to view", b.x + ctx_.px(50),
                b.y + ctx_.px(32), ctx_.px(12.5f), th.accentText.alpha(0.85f));
         if (ui.tapped(b)) showTab(Tab::Updates);
@@ -357,7 +365,7 @@ float Hub::homeTab(float y, const Rect& area) {
         }
         if (featuredAnim_ < 1) featuredAnim_ = std::min(1.0f, featuredAnim_ + ui.dt() / 0.35f);
         const GameInfo& g = *feat[featured_];
-        Rect card{area.x + pad, y, area.w - 2 * pad, ctx_.px(196)};
+        Rect card{area.x + pad, y, area.w - 2 * pad, ctx_.px(184)};
         // Horizontal swipe changes the featured game.
         for (const auto& p : ui.pointers()) {
             if (!p.releasedNow || !ui.inputEnabled()) continue;
@@ -370,23 +378,34 @@ float Hub::homeTab(float y, const Rect& area) {
             }
         }
         const float fa = easeOutCubic(featuredAnim_);
-        r.fillRoundRect(card.offset(0, ctx_.px(4)), ctx_.px(22), Color(0, 0, 0, th.dark ? 90 : 35));
-        r.fillRoundRectGradient(card, ctx_.px(22), g.colorA, g.colorB);
-        const float artW = card.h * 0.95f;
-        Rect art{card.right() - artW - ctx_.px(4) + (1 - fa) * ctx_.px(30), card.y + (card.h - artW) * 0.5f, artW, artW};
+        r.fillRoundRect(card, ctx_.px(20), g.colorA);
+        // Artwork on the right, text column on the left: the two never overlap.
+        const float artW = std::min(card.h - ctx_.px(36), card.w * 0.38f);
+        Rect art{card.right() - artW - ctx_.px(16), card.cy() - artW * 0.5f, artW, artW};
         r.setGlobalAlpha(r.globalAlpha() * fa);
+        r.pushClip(art);
         g.drawArt(r, art, ui.time());
+        r.popClip();
         r.setGlobalAlpha(0.2f + 0.8f * easeOutCubic(trans_));
         const float tx = card.x + ctx_.px(20);
-        r.text("FEATURED", tx, card.y + ctx_.px(20), ctx_.px(11), Color(255, 255, 255, 190), FontId::Bold);
-        r.text(g.name, tx, card.y + ctx_.px(38), ctx_.px(28), Color::hex(0xFFFFFF), FontId::Bold);
-        r.text(g.tagline, tx, card.y + ctx_.px(76), ctx_.px(14), Color(255, 255, 255, 215));
-        r.text(g.players, tx, card.y + ctx_.px(97), ctx_.px(12), Color(255, 255, 255, 170));
-        Rect play{tx, card.bottom() - ctx_.px(62), ctx_.px(120), ctx_.px(44)};
+        const float textW = art.x - ctx_.px(12) - tx;
+        r.text("FEATURED", tx, card.y + ctx_.px(18), ctx_.px(11), Color(255, 255, 255, 200), FontId::Bold, Align::Left, textW);
+        r.text(g.name, tx, card.y + ctx_.px(34), ctx_.px(26), Color::hex(0xFFFFFF), FontId::Bold, Align::Left, textW);
+        float ty = card.y + ctx_.px(70);
+        auto lines = r.wrap(g.tagline, textW, ctx_.px(14));
+        for (size_t li = 0; li < lines.size() && li < 2; ++li) {
+            r.text(lines[li], tx, ty, ctx_.px(14), Color(255, 255, 255, 225), FontId::Regular, Align::Left, textW);
+            ty += ctx_.px(19);
+        }
+        Rect play{tx, card.bottom() - ctx_.px(60), std::min(ctx_.px(116), textW), ctx_.px(42)};
         bool down = ui.pressing(play);
-        r.fillRoundRect(play, ctx_.px(22), down ? Color(235, 235, 245) : Color::hex(0xFFFFFF));
-        drawIcon(r, Icon::Play, {play.x + ctx_.px(16), play.cy() - ctx_.px(9), ctx_.px(18), ctx_.px(18)}, g.colorB);
-        r.textIn("Play", {play.x + ctx_.px(40), play.y, play.w - ctx_.px(52), play.h}, ctx_.px(15), g.colorB, FontId::Bold);
+        r.fillRoundRect(play, ctx_.px(21), down ? Color(232, 232, 240) : Color::hex(0xFFFFFF));
+        const float iconS = ctx_.px(16);
+        const float labelW = r.measure("Play", ctx_.px(15), FontId::Bold);
+        const float groupX = play.cx() - (iconS + ctx_.px(8) + labelW) * 0.5f;
+        drawIcon(r, Icon::Play, {groupX, play.cy() - iconS * 0.5f, iconS, iconS}, g.colorA.darken(0.35f));
+        r.textIn("Play", {groupX + iconS + ctx_.px(8), play.y, labelW + ctx_.px(2), play.h}, ctx_.px(15), g.colorA.darken(0.35f),
+                 FontId::Bold, Align::Left);
         if (ui.tapped(play)) launch_(g.id);
         else if (ui.tapped(card)) openGame(g.id);
         // Dots.
@@ -407,7 +426,7 @@ float Hub::homeTab(float y, const Rect& area) {
     const float gap = ctx_.px(14);
     const float cw = (area.w - 2 * pad - gap * (cols - 1)) / cols;
     const float tileH = cw * 0.68f;
-    const float ch = tileH + ctx_.px(100);
+    const float ch = tileH + ctx_.px(98);
     for (size_t i = 0; i < games.size(); ++i) {
         const GameInfo& g = games[i];
         int c = static_cast<int>(i) % cols, row = static_cast<int>(i) / cols;
@@ -416,27 +435,40 @@ float Hub::homeTab(float y, const Rect& area) {
         r.fillRoundRect(card, ctx_.px(18), pressed ? th.surface2 : th.surface);
         Rect tile{card.x + ctx_.px(8), card.y + ctx_.px(8), card.w - ctx_.px(16), tileH};
         gameTile(g, tile, ctx_.px(13));
-        r.text(r.elide(g.name, card.w - ctx_.px(24), ctx_.px(15.5f), FontId::Bold), card.x + ctx_.px(12),
-               tile.bottom() + ctx_.px(10), ctx_.px(15.5f), th.text, FontId::Bold);
-        r.text(r.elide(g.players, card.w - ctx_.px(24), ctx_.px(12)), card.x + ctx_.px(12), tile.bottom() + ctx_.px(32),
-               ctx_.px(12), th.textDim);
-        Rect chip{card.x + ctx_.px(12), card.bottom() - ctx_.px(40), ctx_.px(78), ctx_.px(24)};
+        // Text column on the left, Play button on the right, status chip below: nothing overlaps.
+        Rect play{card.right() - ctx_.px(10) - ctx_.px(40), tile.bottom() + ctx_.px(12), ctx_.px(40), ctx_.px(40)};
+        const float textW = play.x - ctx_.px(8) - (card.x + ctx_.px(12));
+        r.text(g.name, card.x + ctx_.px(12), tile.bottom() + ctx_.px(10), ctx_.px(15.5f), th.text, FontId::Bold,
+               Align::Left, textW);
+        r.text(g.players, card.x + ctx_.px(12), tile.bottom() + ctx_.px(32), ctx_.px(12), th.textDim, FontId::Regular,
+               Align::Left, textW);
+        Rect chip{card.x + ctx_.px(12), tile.bottom() + ctx_.px(58), std::min(ctx_.px(78), card.w - ctx_.px(24)), ctx_.px(22)};
         installedChip(chip, g.id);
-        Rect play{card.right() - ctx_.px(12) - ctx_.px(44), card.bottom() - ctx_.px(50), ctx_.px(44), ctx_.px(44)};
         if (ui.iconButton(play, Icon::Play, th.accentText, th.accent, 0.42f)) launch_(g.id);
         else if (ui.tapped(card)) openGame(g.id);
     }
     const int rows = (static_cast<int>(games.size()) + cols - 1) / cols;
     y += rows * (ch + gap) + ctx_.px(4);
 
-    // Expansion hint.
-    Rect more{area.x + pad, y, area.w - 2 * pad, ctx_.px(72)};
-    r.strokeRoundRect(more, ctx_.px(18), ctx_.px(1.5f), th.border);
-    drawIcon(r, Icon::Star, {more.x + ctx_.px(16), more.cy() - ctx_.px(13), ctx_.px(26), ctx_.px(26)}, th.warning);
-    r.text("More games are on the way", more.x + ctx_.px(56), more.y + ctx_.px(16), ctx_.px(14.5f), th.text, FontId::Bold);
-    r.text("New games and content arrive through updates", more.x + ctx_.px(56), more.y + ctx_.px(39), ctx_.px(12), th.textDim);
-    if (ui.tapped(more)) showTab(Tab::Updates);
-    y += more.h + ctx_.px(12);
+    // Expansion hint (text wraps inside the card).
+    {
+        const float mx = area.x + pad, mw = area.w - 2 * pad;
+        const float textX = mx + ctx_.px(56), textW = mw - ctx_.px(56) - ctx_.px(16);
+        auto lines = r.wrap("New games and content arrive through updates.", textW, ctx_.px(12.5f));
+        Rect more{mx, y, mw, ctx_.px(48) + lines.size() * ctx_.px(18)};
+        if (ui.pressing(more)) r.fillRoundRect(more, ctx_.px(18), th.surface);
+        r.strokeRoundRect(more, ctx_.px(18), ctx_.px(1.5f), th.border);
+        drawIcon(r, Icon::Star, {mx + ctx_.px(16), more.cy() - ctx_.px(13), ctx_.px(26), ctx_.px(26)}, th.warning);
+        r.text("More games are on the way", textX, more.y + ctx_.px(14), ctx_.px(14.5f), th.text, FontId::Bold,
+               Align::Left, textW);
+        float ly = more.y + ctx_.px(36);
+        for (auto& l : lines) {
+            r.text(l, textX, ly, ctx_.px(12.5f), th.textDim, FontId::Regular, Align::Left, textW);
+            ly += ctx_.px(18);
+        }
+        if (ui.tapped(more)) showTab(Tab::Updates);
+        y += more.h + ctx_.px(12);
+    }
     return y;
 }
 
@@ -479,7 +511,8 @@ float Hub::gamesTab(float y, const Rect& area) {
             Rect tile{row.x + ctx_.px(10), row.y + ctx_.px(10), ctx_.px(56), ctx_.px(56)};
             r.fillRoundRect(tile, ctx_.px(12), th.surface2);
             drawIcon(r, Icon::Download, tile.inset(ctx_.px(14)), th.textDim);
-            r.text(g.name, tile.right() + ctx_.px(12), row.y + ctx_.px(16), ctx_.px(15), th.text, FontId::Bold);
+            r.text(g.name, tile.right() + ctx_.px(12), row.y + ctx_.px(16), ctx_.px(15), th.text, FontId::Bold, Align::Left,
+                   row.w - ctx_.px(170));
             r.text(r.elide(g.description.empty() ? "New game" : g.description, row.w - ctx_.px(170), ctx_.px(12)),
                    tile.right() + ctx_.px(12), row.y + ctx_.px(40), ctx_.px(12), th.textDim);
             if (ui.button({row.right() - ctx_.px(92), row.cy() - ctx_.px(18), ctx_.px(80), ctx_.px(36)}, "Update",
@@ -505,11 +538,11 @@ float Hub::installedTab(float y, const Rect& area) {
         Rect tile{row.x + ctx_.px(10), row.y + ctx_.px(10), ctx_.px(64), ctx_.px(64)};
         gameTile(g, tile, ctx_.px(14));
         const float tx = tile.right() + ctx_.px(14);
-        r.text(g.name, tx, row.y + ctx_.px(14), ctx_.px(16), th.text, FontId::Bold);
+        r.text(g.name, tx, row.y + ctx_.px(14), ctx_.px(16), th.text, FontId::Bold, Align::Left, row.right() - tx - ctx_.px(104));
         uint64_t content = ctx_.storage.packSize(g.id);
         uint64_t saves = ctx_.storage.saveDataSize(g.id);
         std::string sub = "Built-in v" + g.version;
-        if (auto pv = ctx_.storage.packVersion(g.id)) sub += " - pack v" + pv->str() + " (" + formatBytes(content) + ")";
+        if (auto pv = ctx_.storage.packVersion(g.id)) sub += " - theme v" + pv->str() + " (" + formatBytes(content) + ")";
         else if (saves) sub += " - " + formatBytes(saves) + " data";
         r.text(r.elide(sub, row.right() - tx - ctx_.px(100), ctx_.px(12.5f)), tx, row.y + ctx_.px(38), ctx_.px(12.5f), th.textDim);
         installedChip({tx, row.y + ctx_.px(56), ctx_.px(78), ctx_.px(20)}, g.id);
@@ -520,7 +553,7 @@ float Hub::installedTab(float y, const Rect& area) {
     }
     Rect link{area.x + pad, y + ctx_.px(4), area.w - 2 * pad, ctx_.px(64)};
     r.fillRoundRect(link, ctx_.px(18), th.surface);
-    if (settingsLinkRow(link, Icon::Storage, "Storage", "App, content, data and cache usage")) push(Page::Storage);
+    if (settingsLinkRow(link, Icon::Storage, "Storage", "App, themes, data and cache usage")) push(Page::Storage);
     return link.bottom() + ctx_.px(12);
 }
 
@@ -553,8 +586,10 @@ float Hub::updatesTab(float y, const Rect& area) {
     card.h = h;
     r.fillRoundRect(card, ctx_.px(20), th.surface);
     drawLogo(card.x + ctx_.px(16), card.y + ctx_.px(16), ctx_.px(44));
-    r.text("Got Bored", card.x + ctx_.px(74), card.y + ctx_.px(16), ctx_.px(17), th.text, FontId::Bold);
-    r.text("Installed version " + info.versionName, card.x + ctx_.px(74), card.y + ctx_.px(40), ctx_.px(13), th.textDim);
+    r.text("Got Bored", card.x + ctx_.px(74), card.y + ctx_.px(16), ctx_.px(17), th.text, FontId::Bold, Align::Left,
+           card.w - ctx_.px(90));
+    r.text("Installed version " + info.versionName, card.x + ctx_.px(74), card.y + ctx_.px(40), ctx_.px(13), th.textDim,
+           FontId::Regular, Align::Left, card.w - ctx_.px(90));
     float cy = card.y + ctx_.px(76);
 
     // Status line.
@@ -597,7 +632,8 @@ float Hub::updatesTab(float y, const Rect& area) {
 
     if (available) {
         const Manifest* m = um.manifest();
-        r.text("What's new in " + m->app.version.str(), card.x + ctx_.px(16), cy, ctx_.px(15), th.text, FontId::Bold);
+        r.text("What's new in " + m->app.version.str(), card.x + ctx_.px(16), cy, ctx_.px(15), th.text, FontId::Bold,
+               Align::Left, inner);
         cy += ctx_.px(28);
         for (const auto& line : notes) {
             r.text(line, card.x + ctx_.px(16), cy, ctx_.px(13), th.textDim);
@@ -625,7 +661,7 @@ float Hub::updatesTab(float y, const Rect& area) {
     y = std::max(card.bottom(), cy) + ctx_.px(20);
 
     // Game content packs.
-    y = sectionTitle(y, area, "Game content");
+    y = sectionTitle(y, area, "Game themes");
     bool any = false;
     for (const auto& g : gameRegistry()) {
         const GameEntry* e = um.manifest() ? um.manifest()->findGame(g.id) : nullptr;
@@ -636,7 +672,7 @@ float Hub::updatesTab(float y, const Rect& area) {
     if (!any) {
         Rect info2{area.x + pad, y, area.w - 2 * pad, ctx_.px(64)};
         r.fillRoundRect(info2, ctx_.px(18), th.surface);
-        r.text(um.hasManifest() ? "No optional content packs in this release" : "Check for updates to see content packs",
+        r.text(um.hasManifest() ? "No theme packs in this release" : "Check for updates to see theme packs",
                info2.x + ctx_.px(16), info2.y + ctx_.px(14), ctx_.px(13.5f), th.textDim, FontId::Bold);
         r.text("All built-in games are fully playable offline.", info2.x + ctx_.px(16), info2.y + ctx_.px(36),
                ctx_.px(12), th.textFaint);
@@ -658,7 +694,8 @@ float Hub::packSection(float y, const Rect& area, const GameInfo& g) {
     Rect tile{row.x + ctx_.px(10), row.y + ctx_.px(10), ctx_.px(60), ctx_.px(60)};
     gameTile(g, tile, ctx_.px(13));
     const float tx = tile.right() + ctx_.px(12);
-    r.text(g.name + " content", tx, row.y + ctx_.px(14), ctx_.px(15), th.text, FontId::Bold);
+    r.text(g.name + " theme", tx, row.y + ctx_.px(14), ctx_.px(15), th.text, FontId::Bold, Align::Left,
+           row.right() - tx - ctx_.px(112));
     std::string sub;
     if (installed) sub = "Installed v" + installed->str() + " - " + formatBytes(ctx_.storage.packSize(g.id));
     else sub = "Optional - not installed";
@@ -677,11 +714,11 @@ float Hub::packSection(float y, const Rect& area, const GameInfo& g) {
     } else if (installed) {
         if (ui.button(b, "Remove", ButtonStyle::Secondary)) {
             std::string id = g.id, name = g.name;
-            ask("Remove content?", "The optional " + name + " content pack will be deleted. The game stays playable.",
+            ask("Remove theme?", "The optional " + name + " theme will be deleted. The game stays playable.",
                 "Remove", true, [this, id] {
                     ctx_.storage.uninstallPack(id);
                     refreshStorageInfo();
-                    ctx_.toast("Content removed");
+                    ctx_.toast("Theme removed");
                 });
         }
     }
@@ -749,7 +786,7 @@ float Hub::settingsTab(float y, const Rect& area) {
     y = g3.bottom() + ctx_.px(14);
 
     Rect g4 = group("General", 3);
-    if (settingsLinkRow(rowAt(g4, 0), Icon::Storage, "Storage management", "Sizes, content packs and cache")) push(Page::Storage);
+    if (settingsLinkRow(rowAt(g4, 0), Icon::Storage, "Storage management", "Sizes, themes and cache")) push(Page::Storage);
     if (settingsLinkRow(rowAt(g4, 1), Icon::Info, "About", "Licences and project information")) push(Page::About);
     settingsLinkRow(rowAt(g4, 2), Icon::Check, "App version", ctx_.platform.appInfo().platformName,
                     ctx_.platform.appInfo().versionName);
@@ -768,16 +805,23 @@ float Hub::gameDetailPage(float y, const Rect& area, const std::string& id) {
     const float pad = ctx_.px(18);
     y = pageHeader(y, area, g->name, true);
     Rect hero{area.x + pad, y, area.w - 2 * pad, ctx_.px(210)};
-    r.fillRoundRect(hero.offset(0, ctx_.px(4)), ctx_.px(24), Color(0, 0, 0, th.dark ? 90 : 35));
     gameTile(*g, hero, ctx_.px(24));
     y = hero.bottom() + ctx_.px(18);
-    r.text(g->tagline, area.x + pad, y, ctx_.px(18), th.text, FontId::Bold);
+    r.text(g->tagline, area.x + pad, y, ctx_.px(18), th.text, FontId::Bold, Align::Left, area.w - 2 * pad);
     y += ctx_.px(30);
     Rect chip{area.x + pad, y, ctx_.px(78), ctx_.px(24)};
     installedChip(chip, g->id);
     ui.pill({chip.right() + ctx_.px(8), y, ctx_.px(64), ctx_.px(24)}, "v" + g->version, th.surface2, th.textDim);
-    ui.pill({chip.right() + ctx_.px(80), y, r.measure(g->players, ctx_.px(11.5f), FontId::Bold) + ctx_.px(20), ctx_.px(24)},
-            g->players, th.surface2, th.textDim);
+    {
+        // Players pill goes on the same row if it fits, otherwise on its own row.
+        const float pw = std::min(r.measure(g->players, ctx_.px(11.5f), FontId::Bold) + ctx_.px(24), area.w - 2 * pad);
+        float px0 = chip.right() + ctx_.px(80);
+        if (px0 + pw > area.right() - pad) {
+            px0 = area.x + pad;
+            y += ctx_.px(32);
+        }
+        ui.pill({px0, y, pw, ctx_.px(24)}, g->players, th.surface2, th.textDim);
+    }
     y += ctx_.px(40);
     for (auto& line : r.wrap(g->description, area.w - 2 * pad, ctx_.px(14))) {
         r.text(line, area.x + pad, y, ctx_.px(14), th.textDim);
@@ -794,7 +838,7 @@ float Hub::gameDetailPage(float y, const Rect& area, const std::string& id) {
     r.fillRoundRect(box, ctx_.px(18), th.surface);
     uint64_t saves = ctx_.storage.saveDataSize(g->id);
     std::string desc = "Game code is built in (no download). ";
-    desc += ctx_.storage.hasPack(g->id) ? "Content pack: " + formatBytes(ctx_.storage.packSize(g->id)) : "No content pack installed";
+    desc += ctx_.storage.hasPack(g->id) ? "Theme: " + formatBytes(ctx_.storage.packSize(g->id)) : "No theme installed";
     r.text(r.elide(desc, box.w - ctx_.px(32), ctx_.px(12.5f)), box.x + ctx_.px(16), box.y + ctx_.px(12), ctx_.px(12.5f), th.textDim);
     r.text("Saved data: " + formatBytes(saves), box.x + ctx_.px(16), box.y + ctx_.px(34), ctx_.px(12.5f), th.textDim);
     y = box.bottom() + ctx_.px(12);
@@ -832,7 +876,7 @@ float Hub::storagePage(float y, const Rect& area) {
     r.fillRoundRect(bar, ctx_.px(6), th.surface2);
     const uint64_t parts[4] = {si.app, si.packs, si.saves, si.cache};
     const Color cols[4] = {th.accent, th.accent2, th.warning, th.danger};
-    const char* names[4] = {"App (APK)", "Game content", "Saved data & settings", "Cache"};
+    const char* names[4] = {"App (APK)", "Game themes", "Saved data & settings", "Cache"};
     float x = bar.x;
     for (int i = 0; i < 4; ++i) {
         if (!total || !parts[i]) continue;
@@ -843,12 +887,12 @@ float Hub::storagePage(float y, const Rect& area) {
     float ly = bar.bottom() + ctx_.px(14);
     for (int i = 0; i < 4; ++i) {
         r.fillCircle(card.x + ctx_.px(22), ly + ctx_.px(8), ctx_.px(5), cols[i]);
-        r.text(names[i], card.x + ctx_.px(36), ly, ctx_.px(13), th.text);
+        r.text(names[i], card.x + ctx_.px(36), ly, ctx_.px(13), th.text, FontId::Regular, Align::Left, card.w - ctx_.px(130));
         r.text(formatBytes(parts[i]), card.right() - ctx_.px(16), ly, ctx_.px(13), th.textDim, FontId::Bold, Align::Right);
         ly += ctx_.px(24);
     }
     r.text(si.free >= 0 ? "Free space on device: " + formatBytes(static_cast<uint64_t>(si.free)) : "Free space: unknown",
-           card.x + ctx_.px(16), ly + ctx_.px(4), ctx_.px(12), th.textFaint);
+           card.x + ctx_.px(16), ly + ctx_.px(4), ctx_.px(12), th.textFaint, FontId::Regular, Align::Left, card.w - ctx_.px(32));
     y = card.bottom() + ctx_.px(12);
 
     Rect cacheB{area.x + pad, y, area.w - 2 * pad, ctx_.px(46)};
@@ -869,18 +913,20 @@ float Hub::storagePage(float y, const Rect& area) {
         const float tx = tile.right() + ctx_.px(12);
         uint64_t pack = ctx_.storage.packSize(g.id);
         uint64_t saves = ctx_.storage.saveDataSize(g.id);
-        r.text(g.name, tx, row.y + ctx_.px(14), ctx_.px(15), th.text, FontId::Bold);
-        r.text("Content " + formatBytes(pack) + " - Data " + formatBytes(saves), tx, row.y + ctx_.px(38), ctx_.px(12), th.textDim);
+        const float rowTextW = row.right() - tx - ctx_.px(112);
+        r.text(g.name, tx, row.y + ctx_.px(14), ctx_.px(15), th.text, FontId::Bold, Align::Left, rowTextW);
+        r.text("Theme " + formatBytes(pack) + " - Data " + formatBytes(saves), tx, row.y + ctx_.px(38), ctx_.px(12), th.textDim,
+               FontId::Regular, Align::Left, rowTextW);
         if (ctx_.storage.hasPack(g.id)) {
             if (ui.button({row.right() - ctx_.px(100), row.cy() - ctx_.px(18), ctx_.px(88), ctx_.px(36)}, "Uninstall",
                           ButtonStyle::Secondary)) {
                 std::string id = g.id, name = g.name;
-                ask("Uninstall content?", "Remove the downloaded " + name + " content pack (" + formatBytes(pack) +
+                ask("Uninstall theme?", "Remove the downloaded " + name + " theme (" + formatBytes(pack) +
                                               ")? The built-in game remains playable.",
                     "Uninstall", true, [this, id] {
                         ctx_.storage.uninstallPack(id);
                         refreshStorageInfo();
-                        ctx_.toast("Content uninstalled");
+                        ctx_.toast("Theme uninstalled");
                     });
             }
         } else {
@@ -889,9 +935,14 @@ float Hub::storagePage(float y, const Rect& area) {
         }
         y += row.h + ctx_.px(12);
     }
-    r.text("Built-in games cannot be removed individually: their code", area.x + pad, y + ctx_.px(4), ctx_.px(11.5f), th.textFaint);
-    r.text("is part of the app and takes only a few kilobytes each.", area.x + pad, y + ctx_.px(21), ctx_.px(11.5f), th.textFaint);
-    return y + ctx_.px(48);
+    float ny = y + ctx_.px(4);
+    for (auto& l : r.wrap("Built-in games cannot be removed individually: their code is part of the app and takes only a "
+                          "few kilobytes each.",
+                          area.w - 2 * pad, ctx_.px(11.5f))) {
+        r.text(l, area.x + pad, ny, ctx_.px(11.5f), th.textFaint);
+        ny += ctx_.px(17);
+    }
+    return ny + ctx_.px(16);
 }
 
 // ====================================================================== About
@@ -905,10 +956,10 @@ float Hub::aboutPage(float y, const Rect& area) {
     const AppInfo info = ctx_.platform.appInfo();
     drawLogo(area.cx() - ctx_.px(36), y + ctx_.px(6), ctx_.px(72));
     y += ctx_.px(92);
-    r.text("Got Bored", area.cx(), y, ctx_.px(22), th.text, FontId::Bold, Align::Center);
+    r.text("Got Bored", area.cx(), y, ctx_.px(22), th.text, FontId::Bold, Align::Center, area.w - 2 * pad);
     y += ctx_.px(30);
     r.text("Version " + info.versionName + " (" + std::to_string(info.versionCode) + ") - " + info.platformName, area.cx(), y,
-           ctx_.px(13), th.textDim, FontId::Regular, Align::Center);
+           ctx_.px(13), th.textDim, FontId::Regular, Align::Center, area.w - 2 * pad);
     y += ctx_.px(34);
     const std::string about =
         "A lightweight collection of small games written in C++20 with SDL3. Every graphic and sound is generated "
@@ -924,14 +975,18 @@ float Hub::aboutPage(float y, const Rect& area) {
                              {"stb_truetype", "Public domain / MIT"},
                              {"miniz", "MIT licence"},
                              {"Inter font", "SIL Open Font Licence 1.1"},
-                             {"DejaVu Sans (chess glyphs)", "Bitstream Vera licence"}};
-    Rect box{area.x + pad, y, area.w - 2 * pad, ctx_.px(40) * 5 + ctx_.px(8)};
+                             {"DejaVu Sans (chess glyphs)", "Bitstream Vera licence"},
+                             {"Chessnut pieces (Alexis Luengas)", "Apache 2.0 licence"}};
+    const int nLibs = static_cast<int>(sizeof(libs) / sizeof(libs[0]));
+    // Name and licence on separate lines so long names never collide.
+    Rect box{area.x + pad, y, area.w - 2 * pad, ctx_.px(48) * nLibs + ctx_.px(12)};
     r.fillRoundRect(box, ctx_.px(18), th.surface);
     float ly = box.y + ctx_.px(12);
     for (auto& l : libs) {
-        r.text(l[0], box.x + ctx_.px(16), ly, ctx_.px(14), th.text, FontId::Bold);
-        r.text(l[1], box.right() - ctx_.px(16), ly + ctx_.px(1), ctx_.px(12.5f), th.textDim, FontId::Regular, Align::Right);
-        ly += ctx_.px(40);
+        r.text(l[0], box.x + ctx_.px(16), ly, ctx_.px(14), th.text, FontId::Bold, Align::Left, box.w - ctx_.px(32));
+        r.text(l[1], box.x + ctx_.px(16), ly + ctx_.px(20), ctx_.px(12.5f), th.textDim, FontId::Regular, Align::Left,
+               box.w - ctx_.px(32));
+        ly += ctx_.px(48);
     }
     y = box.bottom() + ctx_.px(14);
     if (ui.button({area.x + pad, y, area.w - 2 * pad, ctx_.px(46)}, "Project on GitHub", ButtonStyle::Secondary, Icon::Info))

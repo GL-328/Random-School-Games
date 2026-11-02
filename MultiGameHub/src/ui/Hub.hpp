@@ -24,6 +24,7 @@ public:
     bool animating() const;
     void showTab(Tab t);
     void openGame(const std::string& id);
+    void openPage(Page p) { push(p); }
     Tab currentTab() const { return tab_; }
 
 private:
