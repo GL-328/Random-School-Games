@@ -90,7 +90,7 @@ jobs:
       - name: Prepare release assets
         run: |
           NOTES=release-notes.txt
-          git log -1 --pretty=%B | sed 's/\[release\]//g' > "$NOTES"
+          git log -1 --pretty=%B | sed -e 's/\[release\]//g' -e '/^Co-Authored-By:/d' -e '/^Claude-Session:/d' -e '/^Signed-off-by:/d' > "$NOTES"
           [ -f CHANGELOG-next.md ] && cp CHANGELOG-next.md "$NOTES"
           python3 scripts/make_release.py --apk build/android/GotBored-$(cat VERSION).apk \
             --out build/release --repo "${GITHUB_REPOSITORY}" --notes "$NOTES"
