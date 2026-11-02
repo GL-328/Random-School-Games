@@ -1,7 +1,10 @@
 # Builds, tests and publishes Got Bored.
 #  - Every push / PR touching MultiGameHub/: unit tests + Android APK build.
-#  - Pushing a tag vX.Y.Z (matching MultiGameHub/VERSION): signed release with
-#    APK, content packs and manifest.json -> picked up by the in-app updater.
+#  - A release (tag vX.Y.Z from MultiGameHub/VERSION, signed APK, content packs and
+#    manifest.json -> picked up by the in-app updater) is published when either:
+#      * a tag vX.Y.Z is pushed, or
+#      * a commit whose message contains [release] is pushed to main or a claude/* branch
+#        (the workflow then creates the tag itself).
 #
 # Required repository secrets for releases (all releases MUST use the same key):
 #   MGH_KEYSTORE_BASE64   base64 of the release keystore (.jks)
@@ -11,7 +14,7 @@ name: Got Bored
 on:
   # Tag pushes always run (no path filter); pull requests only when the app changed.
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
     tags: ["v*"]
   pull_request:
     paths: ["MultiGameHub/**", ".github/workflows/multigamehub-release.yml"]
@@ -19,6 +22,9 @@ on:
 
 permissions:
   contents: write
+
+env:
+  IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')) }}
 
 jobs:
   build:
@@ -51,7 +57,7 @@ jobs:
           sdkmanager --install "platforms;android-35" "build-tools;36.1.0" "ndk;29.0.14206865"
 
       - name: Decode release keystore
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.IS_RELEASE == 'true'
         env:
           KEYSTORE_B64: ${{ secrets.MGH_KEYSTORE_BASE64 }}
         run: |
@@ -72,15 +78,19 @@ jobs:
           ./scripts/build_apk.sh
           python3 scripts/check_jni.py build/android/stage/classes
 
-      - name: Check tag matches VERSION
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Determine release tag
+        if: env.IS_RELEASE == 'true'
         run: |
-          test "${GITHUB_REF_NAME}" = "v$(tr -d '[:space:]' < VERSION)" || { echo "::error::tag does not match VERSION"; exit 1; }
+          TAG="v$(tr -d '[:space:]' < VERSION)"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "$TAG" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match VERSION ($TAG)"; exit 1
+          fi
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
 
       - name: Prepare release assets
         run: |
           NOTES=release-notes.txt
-          git log -1 --pretty=%B > "$NOTES"
+          git log -1 --pretty=%B | sed 's/\[release\]//g' > "$NOTES"
           [ -f CHANGELOG-next.md ] && cp CHANGELOG-next.md "$NOTES"
           python3 scripts/make_release.py --apk build/android/GotBored-$(cat VERSION).apk \
             --out build/release --repo "${GITHUB_REPOSITORY}" --notes "$NOTES"
@@ -93,10 +103,13 @@ jobs:
           path: MultiGameHub/build/release/
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.IS_RELEASE == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          name: Got Bored ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: Got Bored ${{ env.RELEASE_TAG }}
+          make_latest: "true"
           files: |
             MultiGameHub/build/release/*.apk
             MultiGameHub/build/release/*.zip
