@@ -81,7 +81,7 @@ public final class PlatformBridge {
                 conn.setInstanceFollowRedirects(false);
                 conn.setConnectTimeout(15000);
                 conn.setReadTimeout(30000);
-                conn.setRequestProperty("User-Agent", "MultiGameHub-Android");
+                conn.setRequestProperty("User-Agent", "GotBored-Android");
                 conn.setRequestProperty("Accept", "application/octet-stream, */*");
                 int code = conn.getResponseCode();
                 if (code >= 300 && code < 400) {

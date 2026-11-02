@@ -66,7 +66,7 @@ bool App::loadAsset(const std::string& name, std::vector<unsigned char>& out) {
 }
 
 bool App::init() {
-    SDL_SetAppMetadata("MultiGame Hub", MGH_VERSION_STR, "com.gl328.multigamehub");
+    SDL_SetAppMetadata("Got Bored", MGH_VERSION_STR, "com.gl328.multigamehub");
     // Unified input: touches only (mouse is converted to touch on desktop).
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
     SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "1");
@@ -81,11 +81,11 @@ bool App::init() {
     platform_ = createPlatform();
 
 #ifdef SDL_PLATFORM_ANDROID
-    window_ = SDL_CreateWindow("MultiGame Hub", 0, 0, SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    window_ = SDL_CreateWindow("Got Bored", 0, 0, SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIGH_PIXEL_DENSITY);
 #else
     int w = 412, h = 892;
     if (const char* env = SDL_getenv("MGH_WINDOW")) std::sscanf(env, "%dx%d", &w, &h);
-    window_ = SDL_CreateWindow("MultiGame Hub", w, h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    window_ = SDL_CreateWindow("Got Bored", w, h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
 #endif
     if (!window_) {
         SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());

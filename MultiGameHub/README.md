@@ -1,4 +1,4 @@
-# MultiGame Hub
+# Got Bored
 
 A lightweight Android game collection ("N games in 1") written in **C++20 + SDL3 + CMake**.
 It ships three fully playable games (**Chess** for two players, real-time **Air Hockey** for
@@ -84,7 +84,7 @@ The three built-in games work fully offline. Their code cannot be uninstalled in
    * game ids restricted to `[a-z0-9_]`.
 3. Downloads show progress and can be cancelled. Every redirect hop must be HTTPS, and sizes are capped. Each file is checked against its expected size and SHA-256, and the APK is checked again just before installation.
 4. The APK is then verified with `PackageManager`: the package name must match, the version must be newer, and it must be signed with the same certificate as the installed app.
-5. Installation uses the Android **PackageInstaller** API, and **Android always asks the user to confirm**. On Android 8+ the user must first allow *Install unknown apps* for MultiGame Hub. The app explains this and opens the right settings page; it never tries to bypass it.
+5. Installation uses the Android **PackageInstaller** API, and **Android always asks the user to confirm**. On Android 8+ the user must first allow *Install unknown apps* for Got Bored. The app explains this and opens the right settings page; it never tries to bypass it.
 
 ### Release signing (important)
 

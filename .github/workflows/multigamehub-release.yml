@@ -1,4 +1,4 @@
-# Builds, tests and publishes MultiGame Hub.
+# Builds, tests and publishes Got Bored.
 #  - Every push / PR touching MultiGameHub/: unit tests + Android APK build.
 #  - Pushing a tag vX.Y.Z (matching MultiGameHub/VERSION): signed release with
 #    APK, content packs and manifest.json -> picked up by the in-app updater.
@@ -6,13 +6,13 @@
 # Required repository secrets for releases (all releases MUST use the same key):
 #   MGH_KEYSTORE_BASE64   base64 of the release keystore (.jks)
 #   MGH_KEYSTORE_PASSWORD, MGH_KEY_ALIAS, MGH_KEY_PASSWORD
-name: MultiGame Hub
+name: Got Bored
 
 on:
+  # Tag pushes always run (no path filter); pull requests only when the app changed.
   push:
     branches: [main]
     tags: ["v*"]
-    paths: ["MultiGameHub/**", ".github/workflows/multigamehub-release.yml"]
   pull_request:
     paths: ["MultiGameHub/**", ".github/workflows/multigamehub-release.yml"]
   workflow_dispatch:
@@ -82,7 +82,7 @@ jobs:
           NOTES=release-notes.txt
           git log -1 --pretty=%B > "$NOTES"
           [ -f CHANGELOG-next.md ] && cp CHANGELOG-next.md "$NOTES"
-          python3 scripts/make_release.py --apk build/android/MultiGameHub-$(cat VERSION).apk \
+          python3 scripts/make_release.py --apk build/android/GotBored-$(cat VERSION).apk \
             --out build/release --repo "${GITHUB_REPOSITORY}" --notes "$NOTES"
           cmake -S . -B build/tools -G Ninja -DMGH_BUILD_APP=OFF && cmake --build build/tools --target manifest_check
           ./build/tools/manifest_check build/release/manifest.json build/release
@@ -96,6 +96,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          name: Got Bored ${{ github.ref_name }}
           files: |
             MultiGameHub/build/release/*.apk
             MultiGameHub/build/release/*.zip

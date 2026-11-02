@@ -2,7 +2,7 @@
 """Prepares GitHub Release assets: zips content packs and writes manifest.json.
 
 Usage:
-  make_release.py --apk build/android/MultiGameHub-1.1.0.apk --out release/ \
+  make_release.py --apk build/android/GotBored-1.1.0.apk --out release/ \
                   --repo GL-328/Random-School-Games [--notes notes.md]
 
 The app downloads https://github.com/<repo>/releases/latest/download/manifest.json,
@@ -72,10 +72,10 @@ def main():
     base_url = f"https://github.com/{args.repo}/releases/download/{tag}/"
     os.makedirs(args.out, exist_ok=True)
 
-    apk_name = f"MultiGameHub-{version}.apk"
+    apk_name = f"GotBored-{version}.apk"
     apk_out = os.path.join(args.out, apk_name)
     shutil.copyfile(args.apk, apk_out)
-    notes = open(args.notes).read().strip() if args.notes else f"MultiGame Hub {version}"
+    notes = open(args.notes).read().strip() if args.notes else f"Got Bored {version}"
 
     games = []
     packs_dir = os.path.join(ROOT, "packs")

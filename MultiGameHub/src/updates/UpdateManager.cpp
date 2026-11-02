@@ -238,7 +238,7 @@ void UpdateManager::installApp() {
         return;
     }
     if (!installer_.canRequestInstall()) {
-        error_ = "Allow \"Install unknown apps\" for MultiGame Hub, then tap Install again.";
+        error_ = "Allow \"Install unknown apps\" for Got Bored, then tap Install again.";
         installer_.openInstallPermissionSettings();
         return;
     }

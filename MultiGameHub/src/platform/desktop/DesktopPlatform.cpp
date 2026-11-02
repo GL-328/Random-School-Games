@@ -49,7 +49,7 @@ public:
         std::string maxStr = std::to_string(maxBytes);
         std::vector<std::string> args = {"curl", "-fsSL", "--proto", "=https", "--proto-redir", "=https",
                                          "--connect-timeout", "15", "--max-filesize", maxStr,
-                                         "-A", "MultiGameHub-desktop", "-o", dest, url};
+                                         "-A", "GotBored-desktop", "-o", dest, url};
         std::vector<char*> argv;
         for (auto& a : args) argv.push_back(a.data());
         argv.push_back(nullptr);

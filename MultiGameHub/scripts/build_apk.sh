@@ -32,7 +32,7 @@ for f in "$NDK/build/cmake/android.toolchain.cmake" "$BT/aapt2" "$BT/d8" "$BT/ap
 done
 [[ -f "$ROOT/third_party/SDL/CMakeLists.txt" ]] || "$ROOT/scripts/fetch_deps.sh"
 
-echo "== MultiGame Hub $VERSION ($VCODE) | NDK $(basename "$NDK") | build-tools $BT_VER"
+echo "== Got Bored $VERSION ($VCODE) | NDK $(basename "$NDK") | build-tools $BT_VER"
 mkdir -p "$OUT"
 NATIVE="$OUT/native"
 STAGE="$OUT/stage"
@@ -86,11 +86,11 @@ if [[ -z "${MGH_KEYSTORE_FILE:-}" ]]; then
   if [[ ! -f "$MGH_KEYSTORE_FILE" ]]; then
     keytool -genkeypair -keystore "$MGH_KEYSTORE_FILE" -storepass android -keypass android \
       -alias mghdebug -keyalg RSA -keysize 2048 -validity 10000 \
-      -dname "CN=MultiGame Hub Debug,O=GL-328,C=GB" > /dev/null 2>&1
+      -dname "CN=Got Bored Debug,O=GL-328,C=GB" > /dev/null 2>&1
   fi
   echo "WARNING: signed with a local debug key ($MGH_KEYSTORE_FILE)"
 fi
-APK="$OUT/MultiGameHub-$VERSION.apk"
+APK="$OUT/GotBored-$VERSION.apk"
 "$BT/apksigner" sign --ks "$MGH_KEYSTORE_FILE" --ks-pass "pass:$MGH_KEYSTORE_PASSWORD" \
   --ks-key-alias "$MGH_KEY_ALIAS" --key-pass "pass:$MGH_KEY_PASSWORD" \
   --min-sdk-version $MIN_SDK --out "$APK" "$STAGE/aligned.apk"

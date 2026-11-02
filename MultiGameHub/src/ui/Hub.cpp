@@ -322,7 +322,7 @@ float Hub::homeTab(float y, const Rect& area) {
 
     // Header.
     drawLogo(area.x + pad, y + ctx_.px(10), ctx_.px(40));
-    r.text("MultiGame Hub", area.x + pad + ctx_.px(52), y + ctx_.px(8), ctx_.px(22), th.text, FontId::Bold);
+    r.text("Got Bored", area.x + pad + ctx_.px(52), y + ctx_.px(8), ctx_.px(22), th.text, FontId::Bold);
     r.text(std::to_string(games.size()) + " games ready - play offline", area.x + pad + ctx_.px(52), y + ctx_.px(36),
            ctx_.px(12.5f), th.textDim);
     if (ui.iconButton({area.right() - pad - ctx_.px(40), y + ctx_.px(10), ctx_.px(40), ctx_.px(40)}, Icon::Gear, th.text,
@@ -553,7 +553,7 @@ float Hub::updatesTab(float y, const Rect& area) {
     card.h = h;
     r.fillRoundRect(card, ctx_.px(20), th.surface);
     drawLogo(card.x + ctx_.px(16), card.y + ctx_.px(16), ctx_.px(44));
-    r.text("MultiGame Hub", card.x + ctx_.px(74), card.y + ctx_.px(16), ctx_.px(17), th.text, FontId::Bold);
+    r.text("Got Bored", card.x + ctx_.px(74), card.y + ctx_.px(16), ctx_.px(17), th.text, FontId::Bold);
     r.text("Installed version " + info.versionName, card.x + ctx_.px(74), card.y + ctx_.px(40), ctx_.px(13), th.textDim);
     float cy = card.y + ctx_.px(76);
 
@@ -609,7 +609,7 @@ float Hub::updatesTab(float y, const Rect& area) {
             if (ui.button(b, "Install update", ButtonStyle::Success, Icon::Download, phase == UpdateManager::Phase::ReadyToInstall))
                 um.installApp();
             cy += ctx_.px(54);
-            auto expl = r.wrap("Android will ask you to confirm the installation. If asked, allow MultiGame Hub to "
+            auto expl = r.wrap("Android will ask you to confirm the installation. If asked, allow Got Bored to "
                                "\"Install unknown apps\". Your settings and scores are kept.",
                                inner, ctx_.px(12));
             for (auto& l : expl) {
@@ -825,7 +825,7 @@ float Hub::storagePage(float y, const Rect& area) {
 
     Rect card{area.x + pad, y, area.w - 2 * pad, ctx_.px(236)};
     r.fillRoundRect(card, ctx_.px(20), th.surface);
-    r.text("Total used by MultiGame Hub", card.x + ctx_.px(16), card.y + ctx_.px(16), ctx_.px(13), th.textDim);
+    r.text("Total used by Got Bored", card.x + ctx_.px(16), card.y + ctx_.px(16), ctx_.px(13), th.textDim);
     r.text(formatBytes(total), card.x + ctx_.px(16), card.y + ctx_.px(36), ctx_.px(28), th.text, FontId::Bold);
     // Stacked usage bar.
     Rect bar{card.x + ctx_.px(16), card.y + ctx_.px(84), card.w - ctx_.px(32), ctx_.px(12)};
@@ -905,7 +905,7 @@ float Hub::aboutPage(float y, const Rect& area) {
     const AppInfo info = ctx_.platform.appInfo();
     drawLogo(area.cx() - ctx_.px(36), y + ctx_.px(6), ctx_.px(72));
     y += ctx_.px(92);
-    r.text("MultiGame Hub", area.cx(), y, ctx_.px(22), th.text, FontId::Bold, Align::Center);
+    r.text("Got Bored", area.cx(), y, ctx_.px(22), th.text, FontId::Bold, Align::Center);
     y += ctx_.px(30);
     r.text("Version " + info.versionName + " (" + std::to_string(info.versionCode) + ") - " + info.platformName, area.cx(), y,
            ctx_.px(13), th.textDim, FontId::Regular, Align::Center);
