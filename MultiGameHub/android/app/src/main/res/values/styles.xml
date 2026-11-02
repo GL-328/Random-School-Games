@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="HubTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/hub_background</item>
+        <item name="android:colorBackground">@color/hub_background</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+    <color name="hub_background">#121419</color>
+</resources>

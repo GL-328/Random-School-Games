@@ -1,0 +1,8 @@
+build/
+third_party/SDL/
+android/.gradle/
+android/app/.cxx/
+android/app/build/
+android/local.properties
+*.keystore
+*.jks

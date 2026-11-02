@@ -1,0 +1,11 @@
+wait 30
+shot home
+tab 1
+wait 20
+shot games
+tab 2
+shot installed
+tab 3
+shot updates
+tab 4
+shot settings

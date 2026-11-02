@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Back up settings and high scores, never caches or downloaded packs. -->
+    <include domain="file" path="data/settings.cfg" />
+    <include domain="file" path="settings.cfg" />
+    <exclude domain="file" path="packs" />
+</full-backup-content>
